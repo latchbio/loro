@@ -131,7 +131,6 @@ impl DiffCalculator {
                             }
                         }
                     }
-                    println!("op {:?}", op);
                     // slice the op if needed
                     let stack_sliced_op;
                     if op.counter < start_counter {
