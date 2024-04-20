@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use loro_internal::LoroDoc;
 
 fn main() {
@@ -21,4 +23,11 @@ fn main() {
     let doc4 = LoroDoc::new_auto_commit();
     doc4.import(&updates_with_unknown).unwrap();
     println!("{:?}", doc4.get_deep_value());
+
+    let mut file = std::fs::File::create("/Users/leon/Desktop/debug/updates_with_unknown").unwrap();
+    file.write_all(&updates_with_unknown).unwrap();
+
+    let mut file =
+        std::fs::File::create("/Users/leon/Desktop/debug/snapshot_with_unknown").unwrap();
+    file.write_all(&snapshot_with_unknown).unwrap();
 }
