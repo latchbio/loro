@@ -6,7 +6,7 @@ use smallvec::SmallVec;
 
 use crate::{
     container::richtext::richtext_state::RichtextStateChunk,
-    delta::{Delta, MapDelta, ResolvedMapDelta, StyleMeta, TreeDelta, TreeDiff},
+    delta::{Delta, MapDelta, ResolvedMapDelta, StyleMeta},
     handler::ValueOrHandler,
     op::SliceRanges,
     utils::string_slice::StringSlice,
@@ -207,7 +207,7 @@ pub(crate) enum InternalDiff {
     /// This always uses entity indexes.
     RichtextRaw(Delta<RichtextStateChunk>),
     Map(MapDelta),
-    Tree(TreeDelta),
+    // Tree(TreeDelta),
 }
 
 impl From<InternalDiff> for DiffVariant {
@@ -235,7 +235,7 @@ pub enum Diff {
     /// - When feature `wasm` is disabled, it should use unicode indexes.
     Text(Delta<StringSlice, StyleMeta>),
     Map(ResolvedMapDelta),
-    Tree(TreeDiff),
+    // Tree(TreeDiff),
 }
 
 impl From<Diff> for DiffVariant {
@@ -250,7 +250,7 @@ impl InternalDiff {
             InternalDiff::ListRaw(s) => s.is_empty(),
             InternalDiff::RichtextRaw(t) => t.is_empty(),
             InternalDiff::Map(m) => m.updated.is_empty(),
-            InternalDiff::Tree(t) => t.is_empty(),
+            // InternalDiff::Tree(t) => t.is_empty(),
         }
     }
 
@@ -264,7 +264,7 @@ impl InternalDiff {
                 Ok(InternalDiff::RichtextRaw(a.compose(b)))
             }
             (InternalDiff::Map(a), InternalDiff::Map(b)) => Ok(InternalDiff::Map(a.compose(b))),
-            (InternalDiff::Tree(a), InternalDiff::Tree(b)) => Ok(InternalDiff::Tree(a.compose(b))),
+            // (InternalDiff::Tree(a), InternalDiff::Tree(b)) => Ok(InternalDiff::Tree(a.compose(b))),
             (a, _) => Err(a),
         }
     }
@@ -278,7 +278,7 @@ impl Diff {
             (Diff::Text(a), Diff::Text(b)) => Ok(Diff::Text(a.compose(b))),
             (Diff::Map(a), Diff::Map(b)) => Ok(Diff::Map(a.compose(b))),
 
-            (Diff::Tree(a), Diff::Tree(b)) => Ok(Diff::Tree(a.compose(b))),
+            // (Diff::Tree(a), Diff::Tree(b)) => Ok(Diff::Tree(a.compose(b))),
             (a, _) => Err(a),
         }
     }
@@ -288,7 +288,7 @@ impl Diff {
             Diff::List(s) => s.is_empty(),
             Diff::Text(t) => t.is_empty(),
             Diff::Map(m) => m.updated.is_empty(),
-            Diff::Tree(t) => t.diff.is_empty(),
+            // Diff::Tree(t) => t.diff.is_empty(),
         }
     }
 
@@ -304,7 +304,7 @@ impl Diff {
                 Diff::Map(a)
             }
 
-            (Diff::Tree(a), Diff::Tree(b)) => Diff::Tree(a.extend(b.diff)),
+            // (Diff::Tree(a), Diff::Tree(b)) => Diff::Tree(a.extend(b.diff)),
             _ => unreachable!(),
         }
     }

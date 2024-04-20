@@ -312,11 +312,11 @@ impl SharedArena {
                     content: InnerContent::List(InnerListOp::StyleEnd),
                 },
             },
-            crate::op::RawOpContent::Tree(tree) => Op {
-                counter,
-                container,
-                content: crate::op::InnerContent::Tree(tree),
-            },
+            // crate::op::RawOpContent::Tree(tree) => Op {
+            //     counter,
+            //     container,
+            //     content: crate::op::InnerContent::Tree(tree),
+            // },
             crate::op::RawOpContent::Unknown { op_len, data } => Op {
                 counter,
                 container,

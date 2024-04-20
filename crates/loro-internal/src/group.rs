@@ -10,8 +10,8 @@ use loro_common::{Counter, HasId, HasLamport, InternalString, LoroValue, PeerID,
 
 use crate::{
     change::{Change, Lamport},
-    container::{idx::ContainerIdx, tree::tree_op::TreeOp},
-    diff_calc::tree::TreeCacheForDiff,
+    container::idx::ContainerIdx,
+    // diff_calc::tree::TreeCacheForDiff,
     op::{InnerContent, RichOp},
     VersionVector,
 };
@@ -38,7 +38,7 @@ impl OpGroups {
                 .or_insert_with(|| match op.content {
                     InnerContent::Map(_) => OpGroup::Map(MapOpGroup::default()),
                     InnerContent::List(_) => unreachable!(),
-                    InnerContent::Tree(_) => OpGroup::Tree(TreeOpGroup::default()),
+                    // InnerContent::Tree(_) => OpGroup::Tree(TreeOpGroup::default()),
                     InnerContent::Unknown { .. } => unreachable!(),
                 });
             manager.insert(&rich_op)
@@ -49,14 +49,14 @@ impl OpGroups {
         self.groups.get(container_idx)
     }
 
-    pub(crate) fn get_tree(&self, container_idx: &ContainerIdx) -> Option<&TreeOpGroup> {
-        self.groups
-            .get(container_idx)
-            .and_then(|group| match group {
-                OpGroup::Tree(tree) => Some(tree),
-                _ => None,
-            })
-    }
+    // pub(crate) fn get_tree(&self, container_idx: &ContainerIdx) -> Option<&TreeOpGroup> {
+    //     self.groups
+    //         .get(container_idx)
+    //         .and_then(|group| match group {
+    //             OpGroup::Tree(tree) => Some(tree),
+    //             _ => None,
+    //         })
+    // }
 
     #[allow(unused)]
     pub(crate) fn get_map(&self, container_idx: &ContainerIdx) -> Option<&MapOpGroup> {
@@ -73,7 +73,7 @@ impl OpGroups {
 #[derive(Debug, Clone, EnumAsInner)]
 pub(crate) enum OpGroup {
     Map(MapOpGroup),
-    Tree(TreeOpGroup),
+    // Tree(TreeOpGroup),
 }
 
 #[enum_dispatch]
@@ -146,55 +146,55 @@ impl OpGroupTrait for MapOpGroup {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct GroupedTreeOpInfo {
-    pub(crate) peer: PeerID,
-    pub(crate) counter: Counter,
-    pub(crate) value: TreeOp,
-}
+// #[derive(Debug, Clone, Copy)]
+// pub(crate) struct GroupedTreeOpInfo {
+//     pub(crate) peer: PeerID,
+//     pub(crate) counter: Counter,
+//     pub(crate) value: TreeOp,
+// }
 
-impl HasId for GroupedTreeOpInfo {
-    fn id_start(&self) -> loro_common::ID {
-        ID::new(self.peer, self.counter)
-    }
-}
+// impl HasId for GroupedTreeOpInfo {
+//     fn id_start(&self) -> loro_common::ID {
+//         ID::new(self.peer, self.counter)
+//     }
+// }
 
-impl PartialEq for GroupedTreeOpInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.peer == other.peer && self.counter == other.counter
-    }
-}
+// impl PartialEq for GroupedTreeOpInfo {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.peer == other.peer && self.counter == other.counter
+//     }
+// }
 
-impl Eq for GroupedTreeOpInfo {}
+// impl Eq for GroupedTreeOpInfo {}
 
-impl PartialOrd for GroupedTreeOpInfo {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
+// impl PartialOrd for GroupedTreeOpInfo {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         Some(self.cmp(other))
+//     }
+// }
 
-impl Ord for GroupedTreeOpInfo {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.peer.cmp(&other.peer)
-    }
-}
+// impl Ord for GroupedTreeOpInfo {
+//     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+//         self.peer.cmp(&other.peer)
+//     }
+// }
 
-#[derive(Debug, Clone, Default)]
-pub(crate) struct TreeOpGroup {
-    pub(crate) ops: BTreeMap<Lamport, BTreeSet<GroupedTreeOpInfo>>,
-    pub(crate) tree_for_diff: Arc<Mutex<TreeCacheForDiff>>,
-}
+// #[derive(Debug, Clone, Default)]
+// pub(crate) struct TreeOpGroup {
+//     pub(crate) ops: BTreeMap<Lamport, BTreeSet<GroupedTreeOpInfo>>,
+//     pub(crate) tree_for_diff: Arc<Mutex<TreeCacheForDiff>>,
+// }
 
-impl OpGroupTrait for TreeOpGroup {
-    fn insert(&mut self, op: &RichOp) {
-        let tree_op = op.raw_op().content.as_tree().unwrap();
-        let target = tree_op.target;
-        let parent = tree_op.parent;
-        let entry = self.ops.entry(op.lamport()).or_default();
-        entry.insert(GroupedTreeOpInfo {
-            value: TreeOp { target, parent },
-            counter: op.raw_op().counter,
-            peer: op.peer,
-        });
-    }
-}
+// impl OpGroupTrait for TreeOpGroup {
+//     fn insert(&mut self, op: &RichOp) {
+//         let tree_op = op.raw_op().content.as_tree().unwrap();
+//         let target = tree_op.target;
+//         let parent = tree_op.parent;
+//         let entry = self.ops.entry(op.lamport()).or_default();
+//         entry.insert(GroupedTreeOpInfo {
+//             value: TreeOp { target, parent },
+//             counter: op.raw_op().counter,
+//             peer: op.peer,
+//         });
+//     }
+// }

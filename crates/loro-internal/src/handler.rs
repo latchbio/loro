@@ -5,12 +5,11 @@ use crate::{
         idx::ContainerIdx,
         list::list_op::{DeleteSpan, DeleteSpanWithId, ListOp},
         richtext::{richtext_state::PosType, RichtextState, StyleOp, TextStyleInfoFlag},
-        tree::tree_op::TreeOp,
     },
     cursor::{Cursor, Side},
-    delta::{DeltaItem, StyleMeta, TreeDiffItem, TreeExternalDiff},
+    delta::{DeltaItem, StyleMeta},
     op::ListSlice,
-    state::{ContainerState, State, TreeParentId},
+    state::{ContainerState, State},
     txn::EventHint,
     utils::{string_slice::StringSlice, utf16::count_utf16_len},
 };
@@ -199,9 +198,9 @@ impl BasicHandler {
                 ContainerType::List => Handler::List(ListHandler {
                     inner: handler.into(),
                 }),
-                ContainerType::Tree => Handler::Tree(TreeHandler {
-                    inner: handler.into(),
-                }),
+                // ContainerType::Tree => Handler::Tree(TreeHandler {
+                //     inner: handler.into(),
+                // }),
                 ContainerType::Text => Handler::Text(TextHandler {
                     inner: handler.into(),
                 }),
@@ -685,7 +684,8 @@ impl HandlerTrait for TreeHandler {
     }
 
     fn kind(&self) -> ContainerType {
-        ContainerType::Tree
+        todo!();
+        // ContainerType::Tree
     }
 
     fn get_attached(&self) -> Option<Self> {
@@ -828,9 +828,9 @@ impl Handler {
             ContainerType::List => Self::List(ListHandler {
                 inner: handler.into(),
             }),
-            ContainerType::Tree => Self::Tree(TreeHandler {
-                inner: handler.into(),
-            }),
+            // ContainerType::Tree => Self::Tree(TreeHandler {
+            //     inner: handler.into(),
+            // }),
             ContainerType::Text => Self::Text(TextHandler {
                 inner: handler.into(),
             }),
@@ -843,7 +843,7 @@ impl Handler {
             ContainerType::Text => Self::Text(TextHandler::new_detached()),
             ContainerType::Map => Self::Map(MapHandler::new_detached()),
             ContainerType::List => Self::List(ListHandler::new_detached()),
-            ContainerType::Tree => Self::Tree(TreeHandler::new_detached()),
+            // ContainerType::Tree => Self::Tree(TreeHandler::new_detached()),
             ContainerType::Unknown(_) => unreachable!(),
         }
     }
@@ -871,7 +871,7 @@ impl Handler {
             Self::Map(_) => ContainerType::Map,
             Self::List(_) => ContainerType::List,
             Self::Text(_) => ContainerType::Text,
-            Self::Tree(_) => ContainerType::Tree,
+            Self::Tree(_) => todo!(), //ContainerType::Tree,
         }
     }
 
@@ -2169,187 +2169,187 @@ impl TreeHandler {
         }
     }
 
-    pub fn delete(&self, target: TreeID) -> LoroResult<()> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let mut t = t.try_lock().unwrap();
-                t.value.delete(target);
-                Ok(())
-            }
-            MaybeDetached::Attached(a) => a.with_txn(|txn| self.delete_with_txn(txn, target)),
-        }
-    }
+    // pub fn delete(&self, target: TreeID) -> LoroResult<()> {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(t) => {
+    //             let mut t = t.try_lock().unwrap();
+    //             t.value.delete(target);
+    //             Ok(())
+    //         }
+    //         MaybeDetached::Attached(a) => a.with_txn(|txn| self.delete_with_txn(txn, target)),
+    //     }
+    // }
 
-    pub fn delete_with_txn(&self, txn: &mut Transaction, target: TreeID) -> LoroResult<()> {
-        let inner = self.inner.try_attached_state()?;
-        txn.apply_local_op(
-            inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp {
-                target,
-                parent: Some(TreeID::delete_root()),
-            }),
-            EventHint::Tree(TreeDiffItem {
-                target,
-                action: TreeExternalDiff::Delete,
-            }),
-            &inner.state,
-        )
-    }
+    // pub fn delete_with_txn(&self, txn: &mut Transaction, target: TreeID) -> LoroResult<()> {
+    //     let inner = self.inner.try_attached_state()?;
+    //     txn.apply_local_op(
+    //         inner.container_idx,
+    //         crate::op::RawOpContent::Tree(TreeOp {
+    //             target,
+    //             parent: Some(TreeID::delete_root()),
+    //         }),
+    //         EventHint::Tree(TreeDiffItem {
+    //             target,
+    //             action: TreeExternalDiff::Delete,
+    //         }),
+    //         &inner.state,
+    //     )
+    // }
 
-    pub fn create<T: Into<Option<TreeID>>>(&self, parent: T) -> LoroResult<TreeID> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let mut t = t.try_lock().unwrap();
-                Ok(t.value.create(parent.into()))
-            }
-            MaybeDetached::Attached(a) => a.with_txn(|txn| self.create_with_txn(txn, parent)),
-        }
-    }
+    // pub fn create<T: Into<Option<TreeID>>>(&self, parent: T) -> LoroResult<TreeID> {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(t) => {
+    //             let mut t = t.try_lock().unwrap();
+    //             Ok(t.value.create(parent.into()))
+    //         }
+    //         MaybeDetached::Attached(a) => a.with_txn(|txn| self.create_with_txn(txn, parent)),
+    //     }
+    // }
 
-    pub fn create_with_txn<T: Into<Option<TreeID>>>(
-        &self,
-        txn: &mut Transaction,
-        parent: T,
-    ) -> LoroResult<TreeID> {
-        let inner = self.inner.try_attached_state()?;
-        let parent: Option<TreeID> = parent.into();
-        let tree_id = TreeID::from_id(txn.next_id());
-        let event_hint = TreeDiffItem {
-            target: tree_id,
-            action: TreeExternalDiff::Create(parent),
-        };
-        txn.apply_local_op(
-            inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp {
-                target: tree_id,
-                parent,
-            }),
-            EventHint::Tree(event_hint),
-            &inner.state,
-        )?;
-        Ok(tree_id)
-    }
+    // pub fn create_with_txn<T: Into<Option<TreeID>>>(
+    //     &self,
+    //     txn: &mut Transaction,
+    //     parent: T,
+    // ) -> LoroResult<TreeID> {
+    //     let inner = self.inner.try_attached_state()?;
+    //     let parent: Option<TreeID> = parent.into();
+    //     let tree_id = TreeID::from_id(txn.next_id());
+    //     let event_hint = TreeDiffItem {
+    //         target: tree_id,
+    //         action: TreeExternalDiff::Create(parent),
+    //     };
+    //     txn.apply_local_op(
+    //         inner.container_idx,
+    //         crate::op::RawOpContent::Tree(TreeOp {
+    //             target: tree_id,
+    //             parent,
+    //         }),
+    //         EventHint::Tree(event_hint),
+    //         &inner.state,
+    //     )?;
+    //     Ok(tree_id)
+    // }
 
-    pub fn mov<T: Into<Option<TreeID>>>(&self, target: TreeID, parent: T) -> LoroResult<()> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let mut t = t.try_lock().unwrap();
-                t.value.mov(target, parent.into());
-                Ok(())
-            }
-            MaybeDetached::Attached(a) => a.with_txn(|txn| self.mov_with_txn(txn, target, parent)),
-        }
-    }
+    // pub fn mov<T: Into<Option<TreeID>>>(&self, target: TreeID, parent: T) -> LoroResult<()> {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(t) => {
+    //             let mut t = t.try_lock().unwrap();
+    //             t.value.mov(target, parent.into());
+    //             Ok(())
+    //         }
+    //         MaybeDetached::Attached(a) => a.with_txn(|txn| self.mov_with_txn(txn, target, parent)),
+    //     }
+    // }
 
-    pub fn mov_with_txn<T: Into<Option<TreeID>>>(
-        &self,
-        txn: &mut Transaction,
-        target: TreeID,
-        parent: T,
-    ) -> LoroResult<()> {
-        let parent = parent.into();
-        let inner = self.inner.try_attached_state()?;
-        txn.apply_local_op(
-            inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp { target, parent }),
-            EventHint::Tree(TreeDiffItem {
-                target,
-                action: TreeExternalDiff::Move(parent),
-            }),
-            &inner.state,
-        )
-    }
+    // pub fn mov_with_txn<T: Into<Option<TreeID>>>(
+    //     &self,
+    //     txn: &mut Transaction,
+    //     target: TreeID,
+    //     parent: T,
+    // ) -> LoroResult<()> {
+    //     let parent = parent.into();
+    //     let inner = self.inner.try_attached_state()?;
+    //     txn.apply_local_op(
+    //         inner.container_idx,
+    //         crate::op::RawOpContent::Tree(TreeOp { target, parent }),
+    //         EventHint::Tree(TreeDiffItem {
+    //             target,
+    //             action: TreeExternalDiff::Move(parent),
+    //         }),
+    //         &inner.state,
+    //     )
+    // }
 
-    pub fn get_meta(&self, target: TreeID) -> LoroResult<MapHandler> {
-        match &self.inner {
-            MaybeDetached::Detached(d) => {
-                let d = d.try_lock().unwrap();
-                d.value
-                    .map
-                    .get(&target)
-                    .cloned()
-                    .ok_or(LoroTreeError::TreeNodeNotExist(target).into())
-            }
-            MaybeDetached::Attached(a) => {
-                if !self.contains(target) {
-                    return Err(LoroTreeError::TreeNodeNotExist(target).into());
-                }
-                let map_container_id = target.associated_meta_container();
-                let handler = create_handler(a, map_container_id);
-                Ok(handler.into_map().unwrap())
-            }
-        }
-    }
+    // pub fn get_meta(&self, target: TreeID) -> LoroResult<MapHandler> {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(d) => {
+    //             let d = d.try_lock().unwrap();
+    //             d.value
+    //                 .map
+    //                 .get(&target)
+    //                 .cloned()
+    //                 .ok_or(LoroTreeError::TreeNodeNotExist(target).into())
+    //         }
+    //         MaybeDetached::Attached(a) => {
+    //             if !self.contains(target) {
+    //                 return Err(LoroTreeError::TreeNodeNotExist(target).into());
+    //             }
+    //             let map_container_id = target.associated_meta_container();
+    //             let handler = create_handler(a, map_container_id);
+    //             Ok(handler.into_map().unwrap())
+    //         }
+    //     }
+    // }
 
-    /// Get the parent of the node, if the node is deleted or does not exist, return None
-    pub fn get_node_parent(&self, target: TreeID) -> Option<Option<TreeID>> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.get_parent(target)
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.parent(target).map(|p| match p {
-                    TreeParentId::None => None,
-                    TreeParentId::Node(parent_id) => Some(parent_id),
-                    _ => unreachable!(),
-                })
-            }),
-        }
-    }
+    // /// Get the parent of the node, if the node is deleted or does not exist, return None
+    // pub fn get_node_parent(&self, target: TreeID) -> Option<Option<TreeID>> {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(t) => {
+    //             let t = t.try_lock().unwrap();
+    //             t.value.get_parent(target)
+    //         }
+    //         MaybeDetached::Attached(a) => a.with_state(|state| {
+    //             let a = state.as_tree_state().unwrap();
+    //             a.parent(target).map(|p| match p {
+    //                 TreeParentId::None => None,
+    //                 TreeParentId::Node(parent_id) => Some(parent_id),
+    //                 _ => unreachable!(),
+    //             })
+    //         }),
+    //     }
+    // }
 
-    pub fn children(&self, target: TreeID) -> Vec<TreeID> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.get_children(target).unwrap()
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.get_children(&TreeParentId::Node(target))
-            }),
-        }
-    }
+    // pub fn children(&self, target: TreeID) -> Vec<TreeID> {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(t) => {
+    //             let t = t.try_lock().unwrap();
+    //             t.value.get_children(target).unwrap()
+    //         }
+    //         MaybeDetached::Attached(a) => a.with_state(|state| {
+    //             let a = state.as_tree_state().unwrap();
+    //             a.get_children(&TreeParentId::Node(target))
+    //         }),
+    //     }
+    // }
 
-    pub fn contains(&self, target: TreeID) -> bool {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.map.contains_key(&target)
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.contains(target)
-            }),
-        }
-    }
+    // pub fn contains(&self, target: TreeID) -> bool {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(t) => {
+    //             let t = t.try_lock().unwrap();
+    //             t.value.map.contains_key(&target)
+    //         }
+    //         MaybeDetached::Attached(a) => a.with_state(|state| {
+    //             let a = state.as_tree_state().unwrap();
+    //             a.contains(target)
+    //         }),
+    //     }
+    // }
 
-    pub fn nodes(&self) -> Vec<TreeID> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.map.keys().cloned().collect()
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.nodes()
-            }),
-        }
-    }
+    // pub fn nodes(&self) -> Vec<TreeID> {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(t) => {
+    //             let t = t.try_lock().unwrap();
+    //             t.value.map.keys().cloned().collect()
+    //         }
+    //         MaybeDetached::Attached(a) => a.with_state(|state| {
+    //             let a = state.as_tree_state().unwrap();
+    //             a.nodes()
+    //         }),
+    //     }
+    // }
 
-    #[cfg(feature = "test_utils")]
-    pub fn next_tree_id(&self) -> TreeID {
-        match &self.inner {
-            MaybeDetached::Detached(d) => {
-                let d = d.try_lock().unwrap();
-                TreeID::new(PeerID::MAX, d.value.next_counter)
-            }
-            MaybeDetached::Attached(a) => a
-                .with_txn(|txn| Ok(TreeID::from_id(txn.next_id())))
-                .unwrap(),
-        }
-    }
+    // #[cfg(feature = "test_utils")]
+    // pub fn next_tree_id(&self) -> TreeID {
+    //     match &self.inner {
+    //         MaybeDetached::Detached(d) => {
+    //             let d = d.try_lock().unwrap();
+    //             TreeID::new(PeerID::MAX, d.value.next_counter)
+    //         }
+    //         MaybeDetached::Attached(a) => a
+    //             .with_txn(|txn| Ok(TreeID::from_id(txn.next_id())))
+    //             .unwrap(),
+    //     }
+    // }
 }
 
 #[inline(always)]
@@ -2530,59 +2530,59 @@ mod test {
         );
     }
 
-    #[test]
-    fn tree_meta() {
-        let loro = LoroDoc::new();
-        loro.set_peer_id(1).unwrap();
-        let tree = loro.get_tree("root");
-        let id = loro
-            .with_txn(|txn| tree.create_with_txn(txn, None))
-            .unwrap();
-        loro.with_txn(|txn| {
-            let meta = tree.get_meta(id)?;
-            meta.insert_with_txn(txn, "a", 123.into())
-        })
-        .unwrap();
-        let meta = loro
-            .with_txn(|_| {
-                let meta = tree.get_meta(id)?;
-                Ok(meta.get("a").unwrap())
-            })
-            .unwrap();
-        assert_eq!(meta, 123.into());
-        assert_eq!(
-            r#"[{"parent":null,"meta":{"a":123},"id":"0@1"}]"#,
-            tree.get_deep_value().to_json()
-        );
-        let bytes = loro.export_snapshot();
-        let loro2 = LoroDoc::new();
-        loro2.import(&bytes).unwrap();
-    }
+    // #[test]
+    // fn tree_meta() {
+    //     let loro = LoroDoc::new();
+    //     loro.set_peer_id(1).unwrap();
+    //     let tree = loro.get_tree("root");
+    //     let id = loro
+    //         .with_txn(|txn| tree.create_with_txn(txn, None))
+    //         .unwrap();
+    //     loro.with_txn(|txn| {
+    //         let meta = tree.get_meta(id)?;
+    //         meta.insert_with_txn(txn, "a", 123.into())
+    //     })
+    //     .unwrap();
+    //     let meta = loro
+    //         .with_txn(|_| {
+    //             let meta = tree.get_meta(id)?;
+    //             Ok(meta.get("a").unwrap())
+    //         })
+    //         .unwrap();
+    //     assert_eq!(meta, 123.into());
+    //     assert_eq!(
+    //         r#"[{"parent":null,"meta":{"a":123},"id":"0@1"}]"#,
+    //         tree.get_deep_value().to_json()
+    //     );
+    //     let bytes = loro.export_snapshot();
+    //     let loro2 = LoroDoc::new();
+    //     loro2.import(&bytes).unwrap();
+    // }
 
-    #[test]
-    fn tree_meta_event() {
-        use std::sync::Arc;
-        let loro = LoroDoc::new();
-        let tree = loro.get_tree("root");
-        let text = loro.get_text("text");
-        loro.with_txn(|txn| {
-            let id = tree.create_with_txn(txn, None)?;
-            let meta = tree.get_meta(id)?;
-            meta.insert_with_txn(txn, "a", 1.into())?;
-            text.insert_with_txn(txn, 0, "abc")?;
-            let _id2 = tree.create_with_txn(txn, None)?;
-            meta.insert_with_txn(txn, "b", 2.into())?;
-            Ok(id)
-        })
-        .unwrap();
+    // #[test]
+    // fn tree_meta_event() {
+    //     use std::sync::Arc;
+    //     let loro = LoroDoc::new();
+    //     let tree = loro.get_tree("root");
+    //     let text = loro.get_text("text");
+    //     loro.with_txn(|txn| {
+    //         let id = tree.create_with_txn(txn, None)?;
+    //         let meta = tree.get_meta(id)?;
+    //         meta.insert_with_txn(txn, "a", 1.into())?;
+    //         text.insert_with_txn(txn, 0, "abc")?;
+    //         let _id2 = tree.create_with_txn(txn, None)?;
+    //         meta.insert_with_txn(txn, "b", 2.into())?;
+    //         Ok(id)
+    //     })
+    //     .unwrap();
 
-        let loro2 = LoroDoc::new();
-        loro2.subscribe_root(Arc::new(|e| {
-            println!("{} {:?} ", e.event_meta.by, e.event_meta.diff)
-        }));
-        loro2.import(&loro.export_from(&loro2.oplog_vv())).unwrap();
-        assert_eq!(loro.get_deep_value(), loro2.get_deep_value());
-    }
+    //     let loro2 = LoroDoc::new();
+    //     loro2.subscribe_root(Arc::new(|e| {
+    //         println!("{} {:?} ", e.event_meta.by, e.event_meta.diff)
+    //     }));
+    //     loro2.import(&loro.export_from(&loro2.oplog_vv())).unwrap();
+    //     assert_eq!(loro.get_deep_value(), loro2.get_deep_value());
+    // }
 
     #[test]
     fn richtext_apply_delta() {

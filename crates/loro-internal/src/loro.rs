@@ -630,18 +630,18 @@ impl LoroDoc {
 
     /// id can be a str, ContainerID, or ContainerIdRaw.
     /// if it's str it will use Root container, which will not be None
-    #[inline]
-    pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Tree);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.get_global_txn(),
-            Arc::downgrade(&self.state),
-        )
-        .into_tree()
-        .unwrap()
-    }
+    // #[inline]
+    // pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Tree);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.get_global_txn(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_tree()
+    //     .unwrap()
+    // }
 
     /// This is for debugging purpose. It will travel the whole oplog
     #[inline]
@@ -942,7 +942,7 @@ impl LoroDoc {
                             },
                         })
                     }
-                    crate::diff_calc::ContainerDiffCalculator::Tree(_) => unreachable!(),
+                    // crate::diff_calc::ContainerDiffCalculator::Tree(_) => unreachable!(),
                     crate::diff_calc::ContainerDiffCalculator::Map(_) => unreachable!(),
                 }
             } else {
@@ -975,7 +975,9 @@ impl LoroDoc {
                             },
                         })
                     }
-                    ContainerType::Map | ContainerType::Tree | ContainerType::Unknown(_) => {
+                    ContainerType::Map 
+                    //| ContainerType::Tree 
+                    | ContainerType::Unknown(_) => {
                         unreachable!()
                     }
                 }

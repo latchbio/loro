@@ -125,16 +125,16 @@ pub enum ContainerType {
     Text,
     Map,
     List,
-    Tree,
+    // Tree,
     Unknown(u8),
 }
 
 impl ContainerType {
-    pub const ALL_TYPES: [ContainerType; 4] = [
+    pub const ALL_TYPES: [ContainerType; 3] = [
         ContainerType::Map,
         ContainerType::List,
         ContainerType::Text,
-        ContainerType::Tree,
+        // ContainerType::Tree,
     ];
 
     pub fn default_value(&self) -> LoroValue {
@@ -142,7 +142,7 @@ impl ContainerType {
             ContainerType::Map => LoroValue::Map(Arc::new(Default::default())),
             ContainerType::List => LoroValue::List(Arc::new(Default::default())),
             ContainerType::Text => LoroValue::String(Arc::new(Default::default())),
-            ContainerType::Tree => LoroValue::List(Arc::new(Default::default())),
+            // ContainerType::Tree => LoroValue::List(Arc::new(Default::default())),
             ContainerType::Unknown(_) => unreachable!(),
         }
     }
@@ -152,7 +152,7 @@ impl ContainerType {
             ContainerType::Map => 1,
             ContainerType::List => 2,
             ContainerType::Text => 3,
-            ContainerType::Tree => 4,
+            // ContainerType::Tree => 4,
             ContainerType::Unknown(k) => k,
         }
     }
@@ -162,7 +162,7 @@ impl ContainerType {
             1 => ContainerType::Map,
             2 => ContainerType::List,
             3 => ContainerType::Text,
-            4 => ContainerType::Tree,
+            // 4 => ContainerType::Tree,
             _ => unreachable!(),
         }
     }
@@ -172,7 +172,7 @@ impl ContainerType {
             1 => Ok(ContainerType::Map),
             2 => Ok(ContainerType::List),
             3 => Ok(ContainerType::Text),
-            4 => Ok(ContainerType::Tree),
+            // 4 => Ok(ContainerType::Tree),
             _ => Err(LoroError::DecodeError(
                 format!("Unknown container type {v}").into_boxed_str(),
             )),
@@ -191,7 +191,7 @@ mod container {
                 ContainerType::Map => "Map",
                 ContainerType::List => "List",
                 ContainerType::Text => "Text",
-                ContainerType::Tree => "Tree",
+                // ContainerType::Tree => "Tree",
                 ContainerType::Unknown(k) => return f.write_fmt(format_args!("Unknown({})", k)),
             })
         }
@@ -306,7 +306,7 @@ mod container {
                 "Map" | "map" => Ok(ContainerType::Map),
                 "List" | "list" => Ok(ContainerType::List),
                 "Text" | "text" => Ok(ContainerType::Text),
-                "Tree" | "tree" => Ok(ContainerType::Tree),
+                // "Tree" | "tree" => Ok(ContainerType::Tree),
                 _ => Err(LoroError::DecodeError(
                     format!("Unknown container type \"{}\". The valid options are Map|List|Text|Tree|MovableList.", value).into(),
                 )),
@@ -432,11 +432,11 @@ mod test {
         assert_eq!(id_str.as_str(), "cid:10@255:Map");
         assert_eq!(ContainerID::try_from(id_str.as_str()).unwrap(), id);
 
-        let id = ContainerID::try_from("cid:root-a:b:c:Tree").unwrap();
-        assert_eq!(
-            id,
-            ContainerID::new_root("a:b:c", crate::ContainerType::Tree)
-        );
+        // let id = ContainerID::try_from("cid:root-a:b:c:Tree").unwrap();
+        // assert_eq!(
+        //     id,
+        //     ContainerID::new_root("a:b:c", crate::ContainerType::Tree)
+        // );
     }
 
     #[test]

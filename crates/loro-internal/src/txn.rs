@@ -19,9 +19,7 @@ use crate::{
         richtext::Style,
         IntoContainerId,
     },
-    delta::{
-        Delta, ResolvedMapDelta, ResolvedMapValue, StyleMeta, StyleMetaItem, TreeDiff, TreeDiffItem,
-    },
+    delta::{Delta, ResolvedMapDelta, ResolvedMapValue, StyleMeta, StyleMetaItem},
     event::Diff,
     handler::{Handler, ValueOrHandler},
     id::{Counter, PeerID, ID},
@@ -94,7 +92,7 @@ pub(super) enum EventHint {
         key: InternalString,
         value: Option<LoroValue>,
     },
-    Tree(TreeDiffItem),
+    // Tree(TreeDiffItem),
     MarkEnd,
 }
 
@@ -109,7 +107,7 @@ impl generic_btree::rle::HasLength for EventHint {
             EventHint::InsertList { len, .. } => *len as usize,
             EventHint::DeleteList(d) => d.len(),
             EventHint::Map { .. } => 1,
-            EventHint::Tree(_) => 1,
+            // EventHint::Tree(_) => 1,
             EventHint::MarkEnd => 1,
         }
     }
@@ -418,17 +416,17 @@ impl Transaction {
 
     /// id can be a str, ContainerID, or ContainerIdRaw.
     /// if it's str it will use Root container, which will not be None
-    pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Tree);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.global_txn.clone(),
-            Arc::downgrade(&self.state),
-        )
-        .into_tree()
-        .unwrap()
-    }
+    // pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Tree);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.global_txn.clone(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_tree()
+    //     .unwrap()
+    // }
 
     pub fn get_value_by_idx(&self, idx: ContainerIdx) -> LoroValue {
         self.state.lock().unwrap().get_value_by_idx(idx)
@@ -602,14 +600,14 @@ fn change_to_diff(
                         },
                     )),
                 }),
-                EventHint::Tree(tree_diff) => {
-                    let mut diff = TreeDiff::default();
-                    diff.push(tree_diff);
-                    ans.push(TxnContainerDiff {
-                        idx,
-                        diff: Diff::Tree(diff),
-                    });
-                }
+                // EventHint::Tree(tree_diff) => {
+                //     let mut diff = TreeDiff::default();
+                //     diff.push(tree_diff);
+                //     ans.push(TxnContainerDiff {
+                //         idx,
+                //         diff: Diff::Tree(diff),
+                //     });
+                // }
                 EventHint::MarkEnd => {
                     // do nothing
                     break 'outer;

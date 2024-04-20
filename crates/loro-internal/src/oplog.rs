@@ -626,7 +626,7 @@ impl OpLog {
                     value,
                 }))
             }
-            crate::op::InnerContent::Tree(tree) => contents.push(RawOpContent::Tree(*tree)),
+            // crate::op::InnerContent::Tree(tree) => contents.push(RawOpContent::Tree(*tree)),
             crate::op::InnerContent::Unknown { op_len, data } => {
                 contents.push(RawOpContent::Unknown {
                     op_len: *op_len,

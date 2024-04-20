@@ -7,7 +7,7 @@ use fxhash::{FxHashMap, FxHashSet};
 use loro_common::{ContainerType, IdFull, LoroValue, TreeID};
 use serde::Serialize;
 
-use crate::state::TreeParentId;
+// use crate::state::TreeParentId;
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct TreeDiff {

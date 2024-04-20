@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    delta::{Delta, DeltaItem, Meta, StyleMeta, TreeValue},
+    delta::{Delta, DeltaItem, Meta, StyleMeta},
     event::{Diff, Index, Path},
     handler::ValueOrHandler,
     utils::string_slice::StringSlice,
@@ -175,7 +175,7 @@ impl ApplyDiff for LoroValue {
                 *value = Arc::new(s);
             }
             LoroValue::List(seq) => {
-                let is_tree = matches!(diff.first(), Some(Diff::Tree(_)));
+                let is_tree = false; //matches!(diff.first(), Some(Diff::Tree(_)));
                 if !is_tree {
                     let seq = Arc::make_mut(seq);
                     for item in diff.iter() {
@@ -200,16 +200,16 @@ impl ApplyDiff for LoroValue {
                         }
                     }
                 } else {
-                    let seq = Arc::make_mut(seq);
-                    for item in diff.iter() {
-                        match item {
-                            Diff::Tree(tree) => {
-                                let mut v = TreeValue(seq);
-                                v.apply_diff(tree);
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
+                    // let seq = Arc::make_mut(seq);
+                    // for item in diff.iter() {
+                    //     match item {
+                    //         Diff::Tree(tree) => {
+                    //             let mut v = TreeValue(seq);
+                    //             v.apply_diff(tree);
+                    //         }
+                    //         _ => unreachable!(),
+                    //     }
+                    // }
                 }
             }
             LoroValue::Map(map) => {
@@ -248,7 +248,7 @@ impl ApplyDiff for LoroValue {
             Diff::List(_) => TypeHint::List,
             Diff::Text(_) => TypeHint::Text,
             Diff::Map(_) => TypeHint::Map,
-            Diff::Tree(_) => TypeHint::Tree,
+            // Diff::Tree(_) => TypeHint::Tree,
         };
         let value = {
             let mut hints = Vec::with_capacity(path.len());
@@ -318,7 +318,7 @@ pub mod wasm {
     use wasm_bindgen::{JsValue, __rt::IntoJsResult};
 
     use crate::{
-        delta::{Delta, DeltaItem, Meta, StyleMeta, TreeDiff, TreeExternalDiff},
+        delta::{Delta, DeltaItem, Meta, StyleMeta},
         event::Index,
         utils::string_slice::StringSlice,
     };
@@ -333,30 +333,30 @@ pub mod wasm {
         }
     }
 
-    impl From<&TreeDiff> for JsValue {
-        fn from(value: &TreeDiff) -> Self {
-            let array = Array::new();
-            for diff in value.diff.iter() {
-                let obj = Object::new();
-                js_sys::Reflect::set(&obj, &"target".into(), &diff.target.into()).unwrap();
-                match diff.action {
-                    TreeExternalDiff::Create(p) => {
-                        js_sys::Reflect::set(&obj, &"action".into(), &"create".into()).unwrap();
-                        js_sys::Reflect::set(&obj, &"parent".into(), &p.into()).unwrap();
-                    }
-                    TreeExternalDiff::Delete => {
-                        js_sys::Reflect::set(&obj, &"action".into(), &"delete".into()).unwrap();
-                    }
-                    TreeExternalDiff::Move(p) => {
-                        js_sys::Reflect::set(&obj, &"action".into(), &"move".into()).unwrap();
-                        js_sys::Reflect::set(&obj, &"parent".into(), &p.into()).unwrap();
-                    }
-                }
-                array.push(&obj);
-            }
-            array.into_js_result().unwrap()
-        }
-    }
+    // impl From<&TreeDiff> for JsValue {
+    //     fn from(value: &TreeDiff) -> Self {
+    //         let array = Array::new();
+    //         for diff in value.diff.iter() {
+    //             let obj = Object::new();
+    //             js_sys::Reflect::set(&obj, &"target".into(), &diff.target.into()).unwrap();
+    //             match diff.action {
+    //                 TreeExternalDiff::Create(p) => {
+    //                     js_sys::Reflect::set(&obj, &"action".into(), &"create".into()).unwrap();
+    //                     js_sys::Reflect::set(&obj, &"parent".into(), &p.into()).unwrap();
+    //                 }
+    //                 TreeExternalDiff::Delete => {
+    //                     js_sys::Reflect::set(&obj, &"action".into(), &"delete".into()).unwrap();
+    //                 }
+    //                 TreeExternalDiff::Move(p) => {
+    //                     js_sys::Reflect::set(&obj, &"action".into(), &"move".into()).unwrap();
+    //                     js_sys::Reflect::set(&obj, &"parent".into(), &p.into()).unwrap();
+    //                 }
+    //             }
+    //             array.push(&obj);
+    //         }
+    //         array.into_js_result().unwrap()
+    //     }
+    // }
 
     impl From<&Delta<StringSlice, StyleMeta>> for JsValue {
         fn from(value: &Delta<StringSlice, StyleMeta>) -> Self {

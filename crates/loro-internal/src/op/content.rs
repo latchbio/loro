@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use crate::container::{
     list::list_op::{InnerListOp, ListOp},
     map::MapSet,
-    tree::tree_op::TreeOp,
 };
 
 /// @deprecated
@@ -25,7 +24,7 @@ pub enum ContentType {
 pub enum InnerContent {
     List(InnerListOp),
     Map(MapSet),
-    Tree(TreeOp),
+    // Tree(TreeOp),
     Unknown { op_len: usize, data: Vec<u8> },
 }
 
@@ -34,7 +33,7 @@ pub enum InnerContent {
 pub enum RawOpContent<'a> {
     Map(MapSet),
     List(ListOp<'a>),
-    Tree(TreeOp),
+    // Tree(TreeOp),
     Unknown { op_len: usize, data: Vec<u8> },
 }
 
@@ -43,7 +42,7 @@ impl<'a> Clone for RawOpContent<'a> {
         match self {
             Self::Map(arg0) => Self::Map(arg0.clone()),
             Self::List(arg0) => Self::List(arg0.clone()),
-            Self::Tree(arg0) => Self::Tree(*arg0),
+            // Self::Tree(arg0) => Self::Tree(*arg0),
             Self::Unknown { op_len, data } => Self::Unknown {
                 op_len: *op_len,
                 data: data.clone(),
@@ -77,7 +76,7 @@ impl<'a> RawOpContent<'a> {
                 }),
                 ListOp::StyleEnd => RawOpContent::List(ListOp::StyleEnd),
             },
-            Self::Tree(arg0) => RawOpContent::Tree(*arg0),
+            // Self::Tree(arg0) => RawOpContent::Tree(*arg0),
             Self::Unknown { op_len, data } => RawOpContent::Unknown {
                 op_len: *op_len,
                 data: data.clone(),
@@ -127,7 +126,7 @@ impl<'a> HasLength for RawOpContent<'a> {
         match self {
             RawOpContent::Map(x) => x.content_len(),
             RawOpContent::List(x) => x.content_len(),
-            RawOpContent::Tree(x) => x.content_len(),
+            // RawOpContent::Tree(x) => x.content_len(),
             RawOpContent::Unknown { op_len, .. } => *op_len,
         }
     }
@@ -138,7 +137,7 @@ impl<'a> Sliceable for RawOpContent<'a> {
         match self {
             RawOpContent::Map(x) => RawOpContent::Map(x.slice(from, to)),
             RawOpContent::List(x) => RawOpContent::List(x.slice(from, to)),
-            RawOpContent::Tree(x) => RawOpContent::Tree(x.slice(from, to)),
+            // RawOpContent::Tree(x) => RawOpContent::Tree(x.slice(from, to)),
             RawOpContent::Unknown { .. } => unreachable!(),
         }
     }
@@ -169,10 +168,10 @@ impl<'a> Mergable for RawOpContent<'a> {
                 RawOpContent::List(y) => x.merge(y, &()),
                 _ => unreachable!(),
             },
-            RawOpContent::Tree(x) => match _other {
-                RawOpContent::Tree(y) => x.merge(y, &()),
-                _ => unreachable!(),
-            },
+            // RawOpContent::Tree(x) => match _other {
+            //     RawOpContent::Tree(y) => x.merge(y, &()),
+            //     _ => unreachable!(),
+            // },
             RawOpContent::Unknown { .. } => unreachable!(),
         }
     }
@@ -183,7 +182,7 @@ impl HasLength for InnerContent {
         match self {
             InnerContent::List(list) => list.atom_len(),
             InnerContent::Map(_) => 1,
-            InnerContent::Tree(_) => 1,
+            // InnerContent::Tree(_) => 1,
             InnerContent::Unknown {
                 op_len: len,
                 data: _,
@@ -197,7 +196,7 @@ impl Sliceable for InnerContent {
         match self {
             a @ InnerContent::Map(_) => a.clone(),
             InnerContent::List(x) => InnerContent::List(x.slice(from, to)),
-            a @ InnerContent::Tree(_) => a.clone(),
+            // a @ InnerContent::Tree(_) => a.clone(),
             a @ InnerContent::Unknown { .. } => a.clone(),
         }
     }

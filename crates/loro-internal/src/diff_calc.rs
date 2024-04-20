@@ -1,6 +1,6 @@
 use std::{num::NonZeroU16, sync::Arc};
 
-pub(super) mod tree;
+// pub(super) mod tree;
 use itertools::Itertools;
 
 use enum_dispatch::enum_dispatch;
@@ -27,7 +27,7 @@ use crate::{
     InternalString, VersionVector,
 };
 
-use self::tree::TreeDiffCalculator;
+// use self::tree::TreeDiffCalculator;
 
 use super::{event::InternalContainerDiff, oplog::OpLog};
 
@@ -131,7 +131,7 @@ impl DiffCalculator {
                             }
                         }
                     }
-
+                    println!("op {:?}", op);
                     // slice the op if needed
                     let stack_sliced_op;
                     if op.counter < start_counter {
@@ -311,10 +311,10 @@ impl DiffCalculator {
                     depth,
                     ContainerDiffCalculator::List(ListDiffCalculator::default()),
                 ),
-                crate::ContainerType::Tree => (
-                    depth,
-                    ContainerDiffCalculator::Tree(TreeDiffCalculator::new(idx)),
-                ),
+                // crate::ContainerType::Tree => (
+                //     depth,
+                //     ContainerDiffCalculator::Tree(TreeDiffCalculator::new(idx)),
+                // ),
                 crate::ContainerType::Unknown(_) => unreachable!(),
             })
     }
@@ -352,7 +352,7 @@ pub(crate) enum ContainerDiffCalculator {
     Map(MapDiffCalculator),
     List(ListDiffCalculator),
     Richtext(RichtextDiffCalculator),
-    Tree(TreeDiffCalculator),
+    // Tree(TreeDiffCalculator),
 }
 
 #[derive(Debug)]
