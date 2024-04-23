@@ -7,7 +7,7 @@ use loro_common::{
     TreeID, ID,
 };
 
-use crate::{container::tree::tree_op::TreeOp, encoding::encode_reordered::MAX_COLLECTION_SIZE};
+use crate::encoding::encode_reordered::MAX_COLLECTION_SIZE;
 
 use super::arena::{DecodedArenas, EncodedRegisters};
 
@@ -35,7 +35,7 @@ pub enum ValueKind {
 
 #[derive(Debug)]
 pub enum FutureValueKind {
-    TreeMove, // 0b10000016
+    // TreeMove, // 0b10000016
     // start from 16
     Unknown(u8),
 }
@@ -60,7 +60,7 @@ impl ValueKind {
             ValueKind::LoroValueArray => 14,
             ValueKind::MarkStart => 15,
             ValueKind::Future(future_value_kind) => match future_value_kind {
-                FutureValueKind::TreeMove => 16 | 0x80,
+                // FutureValueKind::TreeMove => 16 | 0x80,
                 FutureValueKind::Unknown(u8) => *u8 | 0x80,
             },
         }
@@ -85,13 +85,13 @@ impl ValueKind {
             13 => ValueKind::LoroValue,
             14 => ValueKind::LoroValueArray,
             15 => ValueKind::MarkStart,
-            16 => ValueKind::Future(FutureValueKind::TreeMove),
+            // 16 => ValueKind::Future(FutureValueKind::TreeMove),
             _ => ValueKind::Future(FutureValueKind::Unknown(kind)),
         }
     }
 }
 
-#[derive(EnumAsInner)]
+#[derive(Debug, EnumAsInner)]
 pub enum Value<'a> {
     Null,
     True,
@@ -116,8 +116,9 @@ pub enum Value<'a> {
     },
 }
 
+#[derive(Debug)]
 pub enum FutureValue<'a> {
-    TreeMove(EncodedTreeMove),
+    // TreeMove(EncodedTreeMove),
     // The future value cannot depend on the arena for encoding.
     Unknown { kind: u8, data: &'a [u8] },
 }
@@ -145,7 +146,7 @@ impl<'a> Value<'a> {
                 bytes_length: _,
                 value,
             } => match value {
-                FutureValue::TreeMove(..) => ValueKind::Future(FutureValueKind::TreeMove),
+                // FutureValue::TreeMove(..) => ValueKind::Future(FutureValueKind::TreeMove),
                 FutureValue::Unknown { kind, data: _ } => {
                     ValueKind::Future(FutureValueKind::Unknown(*kind))
                 }
@@ -158,7 +159,7 @@ impl<'a> Value<'a> {
     ) -> LoroResult<Self> {
         let bytes_length = value_reader.read_usize()?;
         let value = match future_kind {
-            FutureValueKind::TreeMove => FutureValue::TreeMove(value_reader.read_tree_move()?),
+            // FutureValueKind::TreeMove => FutureValue::TreeMove(value_reader.read_tree_move()?),
             FutureValueKind::Unknown(kind) => FutureValue::Unknown {
                 kind,
                 data: value_reader.take_bytes(bytes_length),
@@ -214,12 +215,12 @@ impl<'a> Value<'a> {
 
     fn encode_without_registers(value: FutureValue, value_writer: &mut ValueWriter) -> ValueKind {
         match value {
-            FutureValue::TreeMove(tree) => {
-                let bytes = write_tree_move(&tree);
-                // value_writer.write_usize(bytes.len());
-                value_writer.write_binary(&bytes);
-                ValueKind::Future(FutureValueKind::TreeMove)
-            }
+            // FutureValue::TreeMove(tree) => {
+            //     let bytes = write_tree_move(&tree);
+            //     // value_writer.write_usize(bytes.len());
+            //     value_writer.write_binary(&bytes);
+            //     ValueKind::Future(FutureValueKind::TreeMove)
+            // }
             FutureValue::Unknown { kind, data } => {
                 value_writer.write_binary(data);
                 ValueKind::Future(FutureValueKind::Unknown(kind))
@@ -293,6 +294,7 @@ impl<'a> Value<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct MarkStart<'a> {
     pub len: u32,
     pub key: &'a InternalString,
@@ -308,28 +310,28 @@ pub struct EncodedTreeMove {
     pub parent_cnt: Counter,
 }
 
-impl EncodedTreeMove {
-    pub fn from_op(op: &TreeOp) -> Self {
-        Self {
-            subject_peer: op.target.peer,
-            subject_cnt: op.target.counter,
-            is_parent_null: op.parent.is_none(),
-            parent_peer: op.parent.map(|x| x.peer).unwrap_or(0),
-            parent_cnt: op.parent.map(|x| x.counter).unwrap_or(0),
-        }
-    }
+// impl EncodedTreeMove {
+//     pub fn from_op(op: &TreeOp) -> Self {
+//         Self {
+//             subject_peer: op.target.peer,
+//             subject_cnt: op.target.counter,
+//             is_parent_null: op.parent.is_none(),
+//             parent_peer: op.parent.map(|x| x.peer).unwrap_or(0),
+//             parent_cnt: op.parent.map(|x| x.counter).unwrap_or(0),
+//         }
+//     }
 
-    pub fn as_tree_op(&self) -> TreeOp {
-        TreeOp {
-            target: TreeID::new(self.subject_peer, self.subject_cnt),
-            parent: if self.is_parent_null {
-                None
-            } else {
-                Some(TreeID::new(self.parent_peer, self.parent_cnt))
-            },
-        }
-    }
-}
+//     pub fn as_tree_op(&self) -> TreeOp {
+//         TreeOp {
+//             target: TreeID::new(self.subject_peer, self.subject_cnt),
+//             parent: if self.is_parent_null {
+//                 None
+//             } else {
+//                 Some(TreeID::new(self.parent_peer, self.parent_cnt))
+//             },
+//         }
+//     }
+// }
 
 pub struct ValueWriter {
     buffer: Vec<u8>,

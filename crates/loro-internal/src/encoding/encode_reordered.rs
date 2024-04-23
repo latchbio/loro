@@ -1197,13 +1197,13 @@ mod encode {
                     None => Value::DeleteOnce,
                 }
             }
-            crate::op::InnerContent::Tree(t) => {
-                assert_eq!(op.container.get_type(), ContainerType::Tree);
-                Value::Future {
-                    bytes_length: 0,
-                    value: FutureValue::TreeMove(EncodedTreeMove::from_op(t)),
-                }
-            }
+            // crate::op::InnerContent::Tree(t) => {
+            //     assert_eq!(op.container.get_type(), ContainerType::Tree);
+            //     Value::Future {
+            //         bytes_length: 0,
+            //         value: FutureValue::TreeMove(EncodedTreeMove::from_op(t)),
+            //     }
+            // }
             crate::op::InnerContent::Unknown { kind, data, .. } => Value::Future {
                 bytes_length: data.len(),
                 value: FutureValue::Unknown { kind: *kind, data },
@@ -1262,7 +1262,10 @@ fn decode_op(
             Value::Null => crate::op::InnerContent::List(
                 crate::container::list::list_op::InnerListOp::StyleEnd,
             ),
-            _ => unreachable!(),
+            _ => {
+                println!("{:?}", value);
+                unreachable!()
+            }
         },
         ContainerType::Map => {
             let key = arenas
@@ -1314,15 +1317,15 @@ fn decode_op(
                 _ => unreachable!(),
             }
         }
-        ContainerType::Tree => match value {
-            Value::Future {
-                bytes_length: _,
-                value: FutureValue::TreeMove(op),
-            } => crate::op::InnerContent::Tree(op.as_tree_op()),
-            _ => {
-                unreachable!()
-            }
-        },
+        // ContainerType::Tree => match value {
+        //     Value::Future {
+        //         bytes_length: _,
+        //         value: FutureValue::TreeMove(op),
+        //     } => crate::op::InnerContent::Tree(op.as_tree_op()),
+        //     _ => {
+        //         unreachable!()
+        //     }
+        // },
         ContainerType::Unknown(_) => {
             // TODO: read unknown
             match value {
