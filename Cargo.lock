@@ -110,18 +110,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
-name = "bench-utils"
-version = "0.1.0"
-dependencies = [
- "arbitrary",
- "enum-as-inner 0.5.1",
- "flate2",
- "loro-common",
- "rand",
- "serde_json",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -270,16 +258,6 @@ checksum = "150fd80a270c0671379f388c8204deb6a746bb4eac8a6c03fe2460b2c0127ea0"
 dependencies = [
  "backtrace",
  "termcolor",
-]
-
-[[package]]
-name = "console_error_panic_hook"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
-dependencies = [
- "cfg-if",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -515,14 +493,13 @@ dependencies = [
 
 [[package]]
 name = "examples"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "arbitrary",
- "bench-utils",
  "color-backtrace 0.6.1",
  "ctor 0.2.7",
  "flate2",
- "loro",
+ "loro-unknown",
  "serde_json",
  "tabled 0.15.0",
  "tracing",
@@ -552,7 +529,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "fuzz"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "arbitrary",
  "arbtest",
@@ -560,8 +537,8 @@ dependencies = [
  "enum-as-inner 0.5.1",
  "enum_dispatch",
  "fxhash",
- "loro",
- "loro-internal",
+ "loro-internal-unknown",
+ "loro-unknown",
  "tabled 0.10.0",
 ]
 
@@ -594,10 +571,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "wasi",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -779,24 +754,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
-name = "loro"
-version = "0.4.0"
-dependencies = [
- "either",
- "enum-as-inner 0.6.0",
- "loro-internal",
- "serde_json",
-]
-
-[[package]]
-name = "loro-common"
-version = "0.4.0"
+name = "loro-common-unknown"
+version = "1.0.0"
 dependencies = [
  "arbitrary",
  "enum-as-inner 0.6.0",
  "fxhash",
  "js-sys",
- "loro-rle",
+ "loro-rle-unknown",
  "nonmax",
  "serde",
  "serde_columnar",
@@ -806,15 +771,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "loro-internal"
-version = "0.4.0"
+name = "loro-internal-unknown"
+version = "1.0.0"
 dependencies = [
  "append-only-bytes",
  "arbitrary",
  "arbtest",
  "arref",
  "base64",
- "bench-utils",
  "color-backtrace 0.5.1",
  "criterion",
  "ctor 0.1.26",
@@ -828,8 +792,8 @@ dependencies = [
  "itertools 0.11.0",
  "js-sys",
  "leb128",
- "loro-common",
- "loro-rle",
+ "loro-common-unknown",
+ "loro-rle-unknown",
  "md5",
  "miniz_oxide",
  "num",
@@ -856,8 +820,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "loro-rle"
-version = "0.4.0"
+name = "loro-rle-unknown"
+version = "1.0.0"
 dependencies = [
  "append-only-bytes",
  "arref",
@@ -880,19 +844,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f3d053a135388e6b1df14e8af1212af5064746e9b87a06a345a7a779ee9695a"
 
 [[package]]
-name = "loro-wasm"
-version = "0.1.0"
+name = "loro-unknown"
+version = "1.0.0"
 dependencies = [
- "console_error_panic_hook",
- "getrandom",
- "js-sys",
- "loro-internal",
- "loro-rle",
- "serde",
- "serde-wasm-bindgen",
- "tracing",
- "tracing-wasm",
- "wasm-bindgen",
+ "either",
+ "enum-as-inner 0.6.0",
+ "loro-internal-unknown",
+ "serde_json",
 ]
 
 [[package]]
@@ -1831,17 +1789,6 @@ dependencies = [
  "thread_local",
  "tracing-core",
  "tracing-log",
-]
-
-[[package]]
-name = "tracing-wasm"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4575c663a174420fa2d78f4108ff68f65bf2fbb7dd89f33749b6e826b3626e07"
-dependencies = [
- "tracing",
- "tracing-subscriber",
- "wasm-bindgen",
 ]
 
 [[package]]
