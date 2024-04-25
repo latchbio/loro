@@ -38,6 +38,7 @@ pub enum ValueKind {
 #[derive(Debug)]
 pub enum FutureValueKind {
     // start from 17
+    FutureDeleteSeq,
     Unknown(u8),
 }
 
@@ -62,6 +63,7 @@ impl ValueKind {
             ValueKind::MarkStart => 15,
             ValueKind::TreeMove => 16,
             ValueKind::Future(future_value_kind) => match future_value_kind {
+                FutureValueKind::FutureDeleteSeq { .. } => 17,
                 FutureValueKind::Unknown(u8) => *u8 | 0x80,
             },
         }
@@ -87,6 +89,7 @@ impl ValueKind {
             14 => ValueKind::LoroValueArray,
             15 => ValueKind::MarkStart,
             16 => ValueKind::TreeMove,
+            17 => ValueKind::Future(FutureValueKind::FutureDeleteSeq),
             _ => ValueKind::Future(FutureValueKind::Unknown(kind)),
         }
     }
@@ -117,12 +120,14 @@ pub enum Value<'a> {
 
 #[derive(Debug)]
 pub enum FutureValue<'a> {
+    FutureDeleteSeq { peer: u64, counter: i32, len: i64 },
     // The future value cannot depend on the arena for encoding.
     Unknown { kind: u8, data: &'a [u8] },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OwnedFutureValue {
+    FutureDeleteSeq { peer: u64, counter: i32, len: i64 },
     // The future value cannot depend on the arena for encoding.
     Unknown { kind: u8, data: Vec<u8> },
 }
@@ -170,6 +175,9 @@ impl<'a> Value<'a> {
             Value::Binary(_) => ValueKind::Binary,
             Value::TreeMove(..) => ValueKind::TreeMove,
             Value::Future(value) => match value {
+                FutureValue::FutureDeleteSeq { .. } => {
+                    ValueKind::Future(FutureValueKind::FutureDeleteSeq)
+                }
                 FutureValue::Unknown { kind, data: _ } => {
                     ValueKind::Future(FutureValueKind::Unknown(*kind))
                 }
@@ -201,6 +209,13 @@ impl<'a> Value<'a> {
             OwnedValue::Binary(x) => Value::Binary(x.as_slice()),
             OwnedValue::TreeMove(x) => Value::TreeMove(x.clone()),
             OwnedValue::Future(value) => match value {
+                OwnedFutureValue::FutureDeleteSeq { peer, counter, len } => {
+                    Value::Future(FutureValue::FutureDeleteSeq {
+                        peer: *peer,
+                        counter: *counter,
+                        len: *len,
+                    })
+                }
                 OwnedFutureValue::Unknown { kind, data } => Value::Future(FutureValue::Unknown {
                     kind: *kind,
                     data: data.as_slice(),
@@ -231,6 +246,9 @@ impl<'a> Value<'a> {
             Value::Binary(x) => OwnedValue::Binary(x.to_owned()),
             Value::TreeMove(x) => OwnedValue::TreeMove(x),
             Value::Future(value) => match value {
+                FutureValue::FutureDeleteSeq { peer, counter, len } => {
+                    OwnedValue::Future(OwnedFutureValue::FutureDeleteSeq { peer, counter, len })
+                }
                 FutureValue::Unknown { kind, data } => {
                     OwnedValue::Future(OwnedFutureValue::Unknown {
                         kind,
@@ -247,6 +265,11 @@ impl<'a> Value<'a> {
     ) -> LoroResult<Self> {
         let bytes_length = value_reader.read_usize()?;
         let value = match future_kind {
+            FutureValueKind::FutureDeleteSeq => FutureValue::FutureDeleteSeq {
+                peer: value_reader.read_u64()?,
+                counter: value_reader.read_i32()?,
+                len: value_reader.read_i64()?,
+            },
             FutureValueKind::Unknown(kind) => FutureValue::Unknown {
                 kind,
                 data: value_reader.take_bytes(bytes_length),
@@ -315,6 +338,18 @@ impl<'a> Value<'a> {
         value_writer: &mut ValueWriter,
     ) -> (FutureValueKind, usize) {
         match value {
+            FutureValue::FutureDeleteSeq { peer, counter, len } => {
+                let mut writer = ValueWriter::new();
+
+                writer.write_u64(peer);
+                writer.write_i32(counter);
+                writer.write_i64(len);
+
+                (
+                    FutureValueKind::FutureDeleteSeq,
+                    value_writer.write_binary(&writer.finish()),
+                )
+            }
             FutureValue::Unknown { kind, data } => (
                 FutureValueKind::Unknown(kind),
                 value_writer.write_binary(data),

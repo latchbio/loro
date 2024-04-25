@@ -1146,6 +1146,7 @@ mod encode {
                     }
                     crate::container::list::list_op::InnerListOp::StyleEnd => 0,
                 },
+                // TODO:
                 FutureInnerContent::Map(map) => {
                     let key = registers.key.register(&map.key);
                     key as i32
@@ -1196,12 +1197,16 @@ mod encode {
                         Value::Str(std::str::from_utf8(slice.as_bytes()).unwrap())
                     }
                     crate::container::list::list_op::InnerListOp::Delete(span) => {
-                        delete_start.push(EncodedDeleteStartId {
-                            peer_idx: registers.peer.register(&span.id_start.peer),
+                        // delete_start.push(EncodedDeleteStartId {
+                        //     peer_idx: registers.peer.register(&span.id_start.peer),
+                        //     counter: span.id_start.counter,
+                        //     len: span.span.signed_len,
+                        // });
+                        Value::Future(FutureValue::FutureDeleteSeq {
+                            peer: span.id_start.peer,
                             counter: span.id_start.counter,
-                            len: span.span.signed_len,
-                        });
-                        Value::DeleteSeq
+                            len: span.span.signed_len as i64,
+                        })
                     }
                     crate::container::list::list_op::InnerListOp::StyleStart {
                         start,
@@ -1316,16 +1321,16 @@ fn decode_op(
                         pos,
                     })
                 }
-                Value::DeleteSeq => {
-                    let del_start = del_iter.next().unwrap()?;
-                    let peer_idx = del_start.peer_idx;
-                    let cnt = del_start.counter;
-                    let len = del_start.len;
+                Value::Future(FutureValue::FutureDeleteSeq { peer, counter, len }) => {
+                    // let del_start = del_iter.next().unwrap()?;
+                    // let peer_idx = del_start.peer_idx;
+                    // let cnt = del_start.counter;
+                    // let len = del_start.len;
                     FutureInnerContent::List(crate::container::list::list_op::InnerListOp::Delete(
                         DeleteSpanWithId::new(
-                            ID::new(arenas.peer_ids[peer_idx], cnt as Counter),
+                            ID::new(peer, counter as Counter),
                             pos as isize,
-                            len,
+                            len as isize,
                         ),
                     ))
                 }
