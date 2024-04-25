@@ -122,61 +122,56 @@ pub enum ContainerID {
     Arbitrary, Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord, Serialize, Deserialize,
 )]
 pub enum ContainerType {
-    Text,
-    Map,
-    List,
-    Tree,
+    // Text,
+    // Map,
+    // List,
+    // Tree,
     Unknown(u8),
 }
 
 impl ContainerType {
     pub const ALL_TYPES: [ContainerType; 4] = [
-        ContainerType::Map,
-        ContainerType::List,
-        ContainerType::Text,
-        ContainerType::Tree,
+        ContainerType::Unknown(0),
+        ContainerType::Unknown(1),
+        ContainerType::Unknown(2),
+        ContainerType::Unknown(3),
     ];
 
     pub fn default_value(&self) -> LoroValue {
-        match self {
-            ContainerType::Map => LoroValue::Map(Arc::new(Default::default())),
-            ContainerType::List => LoroValue::List(Arc::new(Default::default())),
-            ContainerType::Text => LoroValue::String(Arc::new(Default::default())),
-            ContainerType::Tree => LoroValue::List(Arc::new(Default::default())),
-            ContainerType::Unknown(_) => unreachable!(),
-        }
+        unreachable!()
+        // match self {
+        //     ContainerType::Map => LoroValue::Map(Arc::new(Default::default())),
+        //     ContainerType::List => LoroValue::List(Arc::new(Default::default())),
+        //     ContainerType::Text => LoroValue::String(Arc::new(Default::default())),
+        //     ContainerType::Tree => LoroValue::List(Arc::new(Default::default())),
+        //     ContainerType::Unknown(_) => unreachable!(),
+        // }
     }
 
     pub fn to_u8(self) -> u8 {
         match self {
-            ContainerType::Map => 1,
-            ContainerType::List => 2,
-            ContainerType::Text => 3,
-            ContainerType::Tree => 4,
+            // ContainerType::Map => 1,
+            // ContainerType::List => 2,
+            // ContainerType::Text => 3,
+            // ContainerType::Tree => 4,
             ContainerType::Unknown(k) => k,
         }
     }
 
     pub fn from_u8(v: u8) -> Self {
         match v {
-            1 => ContainerType::Map,
-            2 => ContainerType::List,
-            3 => ContainerType::Text,
-            4 => ContainerType::Tree,
+            // 1 => ContainerType::Map,
+            // 2 => ContainerType::List,
+            // 3 => ContainerType::Text,
+            // 4 => ContainerType::Tree,
             _ => unreachable!(),
         }
     }
 
     pub fn try_from_u8(v: u8) -> LoroResult<Self> {
-        match v {
-            1 => Ok(ContainerType::Map),
-            2 => Ok(ContainerType::List),
-            3 => Ok(ContainerType::Text),
-            4 => Ok(ContainerType::Tree),
-            _ => Err(LoroError::DecodeError(
-                format!("Unknown container type {v}").into_boxed_str(),
-            )),
-        }
+        Err(LoroError::DecodeError(
+            format!("Unknown container type {v}").into_boxed_str(),
+        ))
     }
 }
 
@@ -188,10 +183,10 @@ mod container {
     impl Display for ContainerType {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.write_str(match self {
-                ContainerType::Map => "Map",
-                ContainerType::List => "List",
-                ContainerType::Text => "Text",
-                ContainerType::Tree => "Tree",
+                // ContainerType::Map => "Map",
+                // ContainerType::List => "List",
+                // ContainerType::Text => "Text",
+                // ContainerType::Tree => "Tree",
                 ContainerType::Unknown(k) => return f.write_fmt(format_args!("Unknown({})", k)),
             })
         }
@@ -303,10 +298,10 @@ mod container {
 
         fn try_from(value: &str) -> Result<Self, Self::Error> {
             match value {
-                "Map" | "map" => Ok(ContainerType::Map),
-                "List" | "list" => Ok(ContainerType::List),
-                "Text" | "text" => Ok(ContainerType::Text),
-                "Tree" | "tree" => Ok(ContainerType::Tree),
+                // "Map" | "map" => Ok(ContainerType::Map),
+                // "List" | "list" => Ok(ContainerType::List),
+                // "Text" | "text" => Ok(ContainerType::Text),
+                // "Tree" | "tree" => Ok(ContainerType::Tree),
                 _ => Err(LoroError::DecodeError(
                     format!("Unknown container type \"{}\". The valid options are Map|List|Text|Tree|MovableList.", value).into(),
                 )),
@@ -368,9 +363,9 @@ impl TreeID {
         }
     }
 
-    pub fn associated_meta_container(&self) -> ContainerID {
-        ContainerID::new_normal(self.id(), ContainerType::Map)
-    }
+    // pub fn associated_meta_container(&self) -> ContainerID {
+    //     ContainerID::new_normal(self.id(), ContainerType::Map)
+    // }
 }
 
 impl Display for TreeID {
@@ -409,42 +404,42 @@ pub mod wasm {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::ContainerID;
+// #[cfg(test)]
+// mod test {
+//     use crate::ContainerID;
 
-    #[test]
-    fn test_container_id_convert_to_and_from_str() {
-        let id = ContainerID::Root {
-            name: "name".into(),
-            container_type: crate::ContainerType::Map,
-        };
-        let id_str = id.to_string();
-        assert_eq!(id_str.as_str(), "cid:root-name:Map");
-        assert_eq!(ContainerID::try_from(id_str.as_str()).unwrap(), id);
+//     #[test]
+//     fn test_container_id_convert_to_and_from_str() {
+//         let id = ContainerID::Root {
+//             name: "name".into(),
+//             container_type: crate::ContainerType::Map,
+//         };
+//         let id_str = id.to_string();
+//         assert_eq!(id_str.as_str(), "cid:root-name:Map");
+//         assert_eq!(ContainerID::try_from(id_str.as_str()).unwrap(), id);
 
-        let id = ContainerID::Normal {
-            counter: 10,
-            peer: 255,
-            container_type: crate::ContainerType::Map,
-        };
-        let id_str = id.to_string();
-        assert_eq!(id_str.as_str(), "cid:10@255:Map");
-        assert_eq!(ContainerID::try_from(id_str.as_str()).unwrap(), id);
+//         let id = ContainerID::Normal {
+//             counter: 10,
+//             peer: 255,
+//             container_type: crate::ContainerType::Map,
+//         };
+//         let id_str = id.to_string();
+//         assert_eq!(id_str.as_str(), "cid:10@255:Map");
+//         assert_eq!(ContainerID::try_from(id_str.as_str()).unwrap(), id);
 
-        let id = ContainerID::try_from("cid:root-a:b:c:Tree").unwrap();
-        assert_eq!(
-            id,
-            ContainerID::new_root("a:b:c", crate::ContainerType::Tree)
-        );
-    }
+//         let id = ContainerID::try_from("cid:root-a:b:c:Tree").unwrap();
+//         assert_eq!(
+//             id,
+//             ContainerID::new_root("a:b:c", crate::ContainerType::Tree)
+//         );
+//     }
 
-    #[test]
-    fn test_convert_invalid_container_id_str() {
-        assert!(ContainerID::try_from("cid:root-:Map").is_err());
-        assert!(ContainerID::try_from("cid:0@:Map").is_err());
-        assert!(ContainerID::try_from("cid:@:Map").is_err());
-        assert!(ContainerID::try_from("cid:x@0:Map").is_err());
-        assert!(ContainerID::try_from("id:0@0:Map").is_err());
-    }
-}
+//     #[test]
+//     fn test_convert_invalid_container_id_str() {
+//         assert!(ContainerID::try_from("cid:root-:Map").is_err());
+//         assert!(ContainerID::try_from("cid:0@:Map").is_err());
+//         assert!(ContainerID::try_from("cid:@:Map").is_err());
+//         assert!(ContainerID::try_from("cid:x@0:Map").is_err());
+//         assert!(ContainerID::try_from("id:0@0:Map").is_err());
+//     }
+// }

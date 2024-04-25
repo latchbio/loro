@@ -15,26 +15,25 @@ use crate::{
     change::{Change, Lamport, Timestamp},
     container::{
         idx::ContainerIdx,
-        list::list_op::{DeleteSpan, InnerListOp},
-        richtext::Style,
+        // list::list_op::{DeleteSpan, InnerListOp},
+        // richtext::Style,
         IntoContainerId,
     },
-    delta::{
-        Delta, ResolvedMapDelta, ResolvedMapValue, StyleMeta, StyleMetaItem, TreeDiff, TreeDiffItem,
-    },
     event::Diff,
-    handler::{Handler, ValueOrHandler},
+    // handler::{Handler, ValueOrHandler},
     id::{Counter, PeerID, ID},
     op::{Op, OpContainer, RawOp, RawOpContent},
     span::HasIdSpan,
     version::Frontiers,
-    InternalString, LoroError, LoroValue,
+    InternalString,
+    LoroError,
+    LoroValue,
 };
 
 use super::{
     arena::SharedArena,
     event::{InternalContainerDiff, InternalDocDiff},
-    handler::{ListHandler, MapHandler, TextHandler, TreeHandler},
+    // handler::{ListHandler, MapHandler, TextHandler, TreeHandler},
     oplog::OpLog,
     state::{DocState, State},
 };
@@ -53,7 +52,7 @@ pub struct Transaction {
     oplog: Arc<Mutex<OpLog>>,
     frontiers: Frontiers,
     local_ops: RleVec<[Op; 1]>, // TODO: use a more efficient data structure
-    event_hints: Vec<EventHint>,
+    // event_hints: Vec<EventHint>,
     pub(super) arena: SharedArena,
     finished: bool,
     on_commit: Option<OnCommitFn>,
@@ -67,119 +66,119 @@ pub struct Transaction {
 /// command. However, internally loro will convert it to unicode index. But the users
 /// still need events that are in utf16 index. To avoid the round trip, we record the
 /// events here.
-#[derive(Debug, Clone, EnumAsInner)]
-pub(super) enum EventHint {
-    Mark {
-        start: u32,
-        end: u32,
-        style: Style,
-    },
-    InsertText {
-        /// pos is a Unicode index. If wasm, it's a UTF-16 index.
-        pos: u32,
-        event_len: u32,
-        unicode_len: u32,
-        styles: StyleMeta,
-    },
-    /// pos is a Unicode index. If wasm, it's a UTF-16 index.
-    DeleteText {
-        span: DeleteSpan,
-        unicode_len: usize,
-    },
-    InsertList {
-        len: u32,
-    },
-    DeleteList(DeleteSpan),
-    Map {
-        key: InternalString,
-        value: Option<LoroValue>,
-    },
-    Tree(TreeDiffItem),
-    MarkEnd,
-}
+// #[derive(Debug, Clone, EnumAsInner)]
+// pub(super) enum EventHint {
+//     Mark {
+//         start: u32,
+//         end: u32,
+//         style: Style,
+//     },
+//     InsertText {
+//         /// pos is a Unicode index. If wasm, it's a UTF-16 index.
+//         pos: u32,
+//         event_len: u32,
+//         unicode_len: u32,
+//         styles: StyleMeta,
+//     },
+//     /// pos is a Unicode index. If wasm, it's a UTF-16 index.
+//     DeleteText {
+//         span: DeleteSpan,
+//         unicode_len: usize,
+//     },
+//     InsertList {
+//         len: u32,
+//     },
+//     DeleteList(DeleteSpan),
+//     Map {
+//         key: InternalString,
+//         value: Option<LoroValue>,
+//     },
+//     Tree(TreeDiffItem),
+//     MarkEnd,
+// }
 
-impl generic_btree::rle::HasLength for EventHint {
-    fn rle_len(&self) -> usize {
-        match self {
-            EventHint::Mark { .. } => 1,
-            EventHint::InsertText {
-                unicode_len: len, ..
-            } => *len as usize,
-            EventHint::DeleteText { unicode_len, .. } => *unicode_len,
-            EventHint::InsertList { len, .. } => *len as usize,
-            EventHint::DeleteList(d) => d.len(),
-            EventHint::Map { .. } => 1,
-            EventHint::Tree(_) => 1,
-            EventHint::MarkEnd => 1,
-        }
-    }
-}
+// impl generic_btree::rle::HasLength for EventHint {
+//     fn rle_len(&self) -> usize {
+//         match self {
+//             EventHint::Mark { .. } => 1,
+//             EventHint::InsertText {
+//                 unicode_len: len, ..
+//             } => *len as usize,
+//             EventHint::DeleteText { unicode_len, .. } => *unicode_len,
+//             EventHint::InsertList { len, .. } => *len as usize,
+//             EventHint::DeleteList(d) => d.len(),
+//             EventHint::Map { .. } => 1,
+//             EventHint::Tree(_) => 1,
+//             EventHint::MarkEnd => 1,
+//         }
+//     }
+// }
 
-impl generic_btree::rle::Mergeable for EventHint {
-    fn can_merge(&self, rhs: &Self) -> bool {
-        match (self, rhs) {
-            (
-                EventHint::InsertText {
-                    pos,
-                    unicode_len: _,
-                    event_len,
-                    styles,
-                },
-                EventHint::InsertText {
-                    pos: r_pos,
-                    styles: r_styles,
-                    ..
-                },
-            ) => *pos + *event_len == *r_pos && styles == r_styles,
-            (EventHint::InsertList { .. }, EventHint::InsertList { .. }) => true,
-            // We don't merge delete text because it's hard to infer the correct pos to split:
-            // `range` param is in unicode range, but the delete text event is in UTF-16 range.
-            // Without the original text, it's impossible to convert the range.
-            (EventHint::DeleteText { span, .. }, EventHint::DeleteText { span: r, .. }) => {
-                span.is_mergable(r, &())
-            }
-            (EventHint::DeleteList(l), EventHint::DeleteList(r)) => l.is_mergable(r, &()),
-            _ => false,
-        }
-    }
+// impl generic_btree::rle::Mergeable for EventHint {
+//     fn can_merge(&self, rhs: &Self) -> bool {
+//         match (self, rhs) {
+//             (
+//                 EventHint::InsertText {
+//                     pos,
+//                     unicode_len: _,
+//                     event_len,
+//                     styles,
+//                 },
+//                 EventHint::InsertText {
+//                     pos: r_pos,
+//                     styles: r_styles,
+//                     ..
+//                 },
+//             ) => *pos + *event_len == *r_pos && styles == r_styles,
+//             (EventHint::InsertList { .. }, EventHint::InsertList { .. }) => true,
+//             // We don't merge delete text because it's hard to infer the correct pos to split:
+//             // `range` param is in unicode range, but the delete text event is in UTF-16 range.
+//             // Without the original text, it's impossible to convert the range.
+//             (EventHint::DeleteText { span, .. }, EventHint::DeleteText { span: r, .. }) => {
+//                 span.is_mergable(r, &())
+//             }
+//             (EventHint::DeleteList(l), EventHint::DeleteList(r)) => l.is_mergable(r, &()),
+//             _ => false,
+//         }
+//     }
 
-    fn merge_right(&mut self, rhs: &Self) {
-        match (self, rhs) {
-            (
-                EventHint::InsertText {
-                    event_len,
-                    unicode_len: len,
-                    ..
-                },
-                EventHint::InsertText {
-                    event_len: r_event_len,
-                    unicode_len: r_len,
-                    ..
-                },
-            ) => {
-                *len += *r_len;
-                *event_len += *r_event_len;
-            }
-            (EventHint::InsertList { len }, EventHint::InsertList { len: r_len }) => *len += *r_len,
-            (EventHint::DeleteList(l), EventHint::DeleteList(r)) => l.merge(r, &()),
-            (
-                EventHint::DeleteText { span, unicode_len },
-                EventHint::DeleteText {
-                    span: r_span,
-                    unicode_len: r_len,
-                },
-            ) => {
-                *unicode_len += *r_len;
-                span.merge(r_span, &());
-            }
-            _ => unreachable!(),
-        }
-    }
+//     fn merge_right(&mut self, rhs: &Self) {
+//         match (self, rhs) {
+//             (
+//                 EventHint::InsertText {
+//                     event_len,
+//                     unicode_len: len,
+//                     ..
+//                 },
+//                 EventHint::InsertText {
+//                     event_len: r_event_len,
+//                     unicode_len: r_len,
+//                     ..
+//                 },
+//             ) => {
+//                 *len += *r_len;
+//                 *event_len += *r_event_len;
+//             }
+//             (EventHint::InsertList { len }, EventHint::InsertList { len: r_len }) => *len += *r_len,
+//             (EventHint::DeleteList(l), EventHint::DeleteList(r)) => l.merge(r, &()),
+//             (
+//                 EventHint::DeleteText { span, unicode_len },
+//                 EventHint::DeleteText {
+//                     span: r_span,
+//                     unicode_len: r_len,
+//                 },
+//             ) => {
+//                 *unicode_len += *r_len;
+//                 span.merge(r_span, &());
+//             }
+//             _ => unreachable!(),
+//         }
+//     }
 
-    fn merge_left(&mut self, _: &Self) {
-        unreachable!()
-    }
-}
+//     fn merge_left(&mut self, _: &Self) {
+//         unreachable!()
+//     }
+// }
 
 impl Transaction {
     #[inline]
@@ -224,7 +223,7 @@ impl Transaction {
             origin: Default::default(),
             start_counter: next_counter,
             start_lamport: next_lamport,
-            event_hints: Default::default(),
+            // event_hints: Default::default(),
             local_ops: RleVec::new(),
             finished: false,
             on_commit: None,
@@ -278,17 +277,7 @@ impl Transaction {
             has_dependents: false,
         };
 
-        let diff = if state.is_recording() {
-            Some(change_to_diff(
-                &change,
-                &oplog.arena,
-                &self.global_txn,
-                &Arc::downgrade(&self.state),
-                std::mem::take(&mut self.event_hints),
-            ))
-        } else {
-            None
-        };
+        // let diff = None;
 
         let last_id = change.id_last();
         if let Err(err) = oplog.import_local_change(change) {
@@ -297,24 +286,24 @@ impl Transaction {
             panic!("{}", err);
         }
 
-        state.commit_txn(
-            Frontiers::from_id(last_id),
-            diff.map(|arr| InternalDocDiff {
-                by: crate::event::EventTriggerKind::Local,
-                origin: self.origin.clone(),
-                diff: Cow::Owned(
-                    arr.into_iter()
-                        .map(|x| InternalContainerDiff {
-                            container: OpContainer::Idx(x.idx),
-                            bring_back: false,
-                            is_container_deleted: false,
-                            diff: Some(x.diff.into()),
-                        })
-                        .collect(),
-                ),
-                new_version: Cow::Borrowed(oplog.frontiers()),
-            }),
-        );
+        // state.commit_txn(
+        //     Frontiers::from_id(last_id),
+        //     diff.map(|arr| InternalDocDiff {
+        //         by: crate::event::EventTriggerKind::Local,
+        //         origin: self.origin.clone(),
+        //         diff: Cow::Owned(
+        //             arr.into_iter()
+        //                 .map(|x| InternalContainerDiff {
+        //                     container: OpContainer::Idx(x.idx),
+        //                     bring_back: false,
+        //                     is_container_deleted: false,
+        //                     diff: Some(x.diff.into()),
+        //                 })
+        //                 .collect(),
+        //         ),
+        //         new_version: Cow::Borrowed(oplog.frontiers()),
+        //     }),
+        // );
         drop(state);
         drop(oplog);
         if let Some(on_commit) = self.on_commit.take() {
@@ -327,7 +316,7 @@ impl Transaction {
         &mut self,
         container: ContainerIdx,
         content: RawOpContent,
-        event: EventHint,
+        // event: EventHint,
         // check whether context and txn are referring to the same state context
         state_ref: &Weak<Mutex<DocState>>,
     ) -> LoroResult<()> {
@@ -353,21 +342,21 @@ impl Transaction {
         let op = self.arena.convert_raw_op(&raw_op);
         state.apply_local_op(&raw_op, &op)?;
         drop(state);
-        debug_assert_eq!(
-            event.rle_len(),
-            op.atom_len(),
-            "event:{:#?} \nop:{:#?}",
-            &event,
-            &op
-        );
-        match self.event_hints.last_mut() {
-            Some(last) if last.can_merge(&event) => {
-                last.merge_right(&event);
-            }
-            _ => {
-                self.event_hints.push(event);
-            }
-        }
+        // debug_assert_eq!(
+        //     event.rle_len(),
+        //     op.atom_len(),
+        //     "event:{:#?} \nop:{:#?}",
+        //     &event,
+        //     &op
+        // );
+        // match self.event_hints.last_mut() {
+        //     Some(last) if last.can_merge(&event) => {
+        //         last.merge_right(&event);
+        //     }
+        //     _ => {
+        //         self.event_hints.push(event);
+        //     }
+        // }
         self.local_ops.push(op);
         self.next_counter += len as Counter;
         self.next_lamport += len as Lamport;
@@ -376,59 +365,59 @@ impl Transaction {
 
     /// id can be a str, ContainerID, or ContainerIdRaw.
     /// if it's str it will use Root container, which will not be None
-    pub fn get_text<I: IntoContainerId>(&self, id: I) -> TextHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Text);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.global_txn.clone(),
-            Arc::downgrade(&self.state),
-        )
-        .into_text()
-        .unwrap()
-    }
+    // pub fn get_text<I: IntoContainerId>(&self, id: I) -> TextHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Text);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.global_txn.clone(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_text()
+    //     .unwrap()
+    // }
 
-    /// id can be a str, ContainerID, or ContainerIdRaw.
-    /// if it's str it will use Root container, which will not be None
-    pub fn get_list<I: IntoContainerId>(&self, id: I) -> ListHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::List);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.global_txn.clone(),
-            Arc::downgrade(&self.state),
-        )
-        .into_list()
-        .unwrap()
-    }
+    // /// id can be a str, ContainerID, or ContainerIdRaw.
+    // /// if it's str it will use Root container, which will not be None
+    // pub fn get_list<I: IntoContainerId>(&self, id: I) -> ListHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::List);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.global_txn.clone(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_list()
+    //     .unwrap()
+    // }
 
-    /// id can be a str, ContainerID, or ContainerIdRaw.
-    /// if it's str it will use Root container, which will not be None
-    pub fn get_map<I: IntoContainerId>(&self, id: I) -> MapHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Map);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.global_txn.clone(),
-            Arc::downgrade(&self.state),
-        )
-        .into_map()
-        .unwrap()
-    }
+    // /// id can be a str, ContainerID, or ContainerIdRaw.
+    // /// if it's str it will use Root container, which will not be None
+    // pub fn get_map<I: IntoContainerId>(&self, id: I) -> MapHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Map);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.global_txn.clone(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_map()
+    //     .unwrap()
+    // }
 
-    /// id can be a str, ContainerID, or ContainerIdRaw.
-    /// if it's str it will use Root container, which will not be None
-    pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Tree);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.global_txn.clone(),
-            Arc::downgrade(&self.state),
-        )
-        .into_tree()
-        .unwrap()
-    }
+    // /// id can be a str, ContainerID, or ContainerIdRaw.
+    // /// if it's str it will use Root container, which will not be None
+    // pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Tree);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.global_txn.clone(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_tree()
+    //     .unwrap()
+    // }
 
     pub fn get_value_by_idx(&self, idx: ContainerIdx) -> LoroValue {
         self.state.lock().unwrap().get_value_by_idx(idx)
@@ -472,156 +461,156 @@ pub(crate) struct TxnContainerDiff {
 }
 
 // PERF: could be compacter
-fn change_to_diff(
-    change: &Change,
-    arena: &SharedArena,
-    txn: &Weak<Mutex<Option<Transaction>>>,
-    state: &Weak<Mutex<DocState>>,
-    event_hints: Vec<EventHint>,
-) -> Vec<TxnContainerDiff> {
-    let mut ans: Vec<TxnContainerDiff> = Vec::with_capacity(change.ops.len());
-    let peer = change.id.peer;
-    let mut lamport = change.lamport;
-    let mut event_hint_iter = event_hints.into_iter();
-    let mut o_hint = event_hint_iter.next();
-    let mut op_iter = change.ops.iter();
-    while let Some(op) = op_iter.next() {
-        let Some(hint) = o_hint.as_mut() else {
-            unreachable!()
-        };
+// fn change_to_diff(
+//     change: &Change,
+//     arena: &SharedArena,
+//     txn: &Weak<Mutex<Option<Transaction>>>,
+//     state: &Weak<Mutex<DocState>>,
+//     // event_hints: Vec<EventHint>,
+// ) -> Vec<TxnContainerDiff> {
+//     let mut ans: Vec<TxnContainerDiff> = Vec::with_capacity(change.ops.len());
+//     let peer = change.id.peer;
+//     let mut lamport = change.lamport;
+//     let mut event_hint_iter = event_hints.into_iter();
+//     let mut o_hint = event_hint_iter.next();
+//     let mut op_iter = change.ops.iter();
+//     while let Some(op) = op_iter.next() {
+//         let Some(hint) = o_hint.as_mut() else {
+//             unreachable!()
+//         };
 
-        let mut ops: SmallVec<[&Op; 1]> = smallvec![op];
-        let hint = match op.atom_len().cmp(&hint.rle_len()) {
-            std::cmp::Ordering::Less => {
-                let mut len = op.atom_len();
-                while len < hint.rle_len() {
-                    let next = op_iter.next().unwrap();
-                    len += next.atom_len();
-                    ops.push(next);
-                }
-                assert!(len == hint.rle_len());
-                match event_hint_iter.next() {
-                    Some(n) => o_hint.replace(n).unwrap(),
-                    None => o_hint.take().unwrap(),
-                }
-            }
-            std::cmp::Ordering::Equal => match event_hint_iter.next() {
-                Some(n) => o_hint.replace(n).unwrap(),
-                None => o_hint.take().unwrap(),
-            },
-            std::cmp::Ordering::Greater => {
-                unreachable!("{:#?}", &op)
-            }
-        };
+//         let mut ops: SmallVec<[&Op; 1]> = smallvec![op];
+//         let hint = match op.atom_len().cmp(&hint.rle_len()) {
+//             std::cmp::Ordering::Less => {
+//                 let mut len = op.atom_len();
+//                 while len < hint.rle_len() {
+//                     let next = op_iter.next().unwrap();
+//                     len += next.atom_len();
+//                     ops.push(next);
+//                 }
+//                 assert!(len == hint.rle_len());
+//                 match event_hint_iter.next() {
+//                     Some(n) => o_hint.replace(n).unwrap(),
+//                     None => o_hint.take().unwrap(),
+//                 }
+//             }
+//             std::cmp::Ordering::Equal => match event_hint_iter.next() {
+//                 Some(n) => o_hint.replace(n).unwrap(),
+//                 None => o_hint.take().unwrap(),
+//             },
+//             std::cmp::Ordering::Greater => {
+//                 unreachable!("{:#?}", &op)
+//             }
+//         };
 
-        match &hint {
-            EventHint::InsertText { .. }
-            | EventHint::InsertList { .. }
-            | EventHint::DeleteText { .. }
-            | EventHint::DeleteList(_) => {}
-            _ => {
-                assert_eq!(ops.len(), 1);
-            }
-        }
-        'outer: {
-            let idx = *op.container.as_idx().unwrap();
-            match hint {
-                EventHint::Mark { start, end, style } => {
-                    let mut meta = StyleMeta::default();
-                    meta.insert(
-                        style.key.clone(),
-                        StyleMetaItem {
-                            lamport,
-                            peer: change.id.peer,
-                            value: style.data,
-                        },
-                    );
-                    let diff = Delta::new()
-                        .retain(start as usize)
-                        .retain_with_meta((end - start) as usize, meta);
-                    ans.push(TxnContainerDiff {
-                        idx,
-                        diff: Diff::Text(diff),
-                    });
-                }
-                EventHint::InsertText { styles, pos, .. } => {
-                    let mut delta = Delta::new().retain(pos as usize);
-                    for op in ops.iter() {
-                        let InnerListOp::InsertText { slice, .. } = op.content.as_list().unwrap()
-                        else {
-                            unreachable!()
-                        };
+//         match &hint {
+//             EventHint::InsertText { .. }
+//             | EventHint::InsertList { .. }
+//             | EventHint::DeleteText { .. }
+//             | EventHint::DeleteList(_) => {}
+//             _ => {
+//                 assert_eq!(ops.len(), 1);
+//             }
+//         }
+//         'outer: {
+//             let idx = *op.container.as_idx().unwrap();
+//             match hint {
+//                 EventHint::Mark { start, end, style } => {
+//                     let mut meta = StyleMeta::default();
+//                     meta.insert(
+//                         style.key.clone(),
+//                         StyleMetaItem {
+//                             lamport,
+//                             peer: change.id.peer,
+//                             value: style.data,
+//                         },
+//                     );
+//                     let diff = Delta::new()
+//                         .retain(start as usize)
+//                         .retain_with_meta((end - start) as usize, meta);
+//                     ans.push(TxnContainerDiff {
+//                         idx,
+//                         diff: Diff::Text(diff),
+//                     });
+//                 }
+//                 EventHint::InsertText { styles, pos, .. } => {
+//                     let mut delta = Delta::new().retain(pos as usize);
+//                     for op in ops.iter() {
+//                         let InnerListOp::InsertText { slice, .. } = op.content.as_list().unwrap()
+//                         else {
+//                             unreachable!()
+//                         };
 
-                        delta = delta.insert_with_meta(slice.clone(), styles.clone());
-                    }
-                    ans.push(TxnContainerDiff {
-                        idx,
-                        diff: Diff::Text(delta),
-                    })
-                }
-                EventHint::DeleteText {
-                    span,
-                    unicode_len: _,
-                    // we don't need to iter over ops here, because we already
-                    // know what the events should be
-                } => ans.push(TxnContainerDiff {
-                    idx,
-                    diff: Diff::Text(
-                        Delta::new()
-                            .retain(span.start() as usize)
-                            .delete(span.len()),
-                    ),
-                }),
-                EventHint::InsertList { .. } => {
-                    for op in ops.iter() {
-                        let (range, pos) = op.content.as_list().unwrap().as_insert().unwrap();
-                        let values = arena
-                            .get_values(range.to_range())
-                            .into_iter()
-                            .map(|v| ValueOrHandler::from_value(v, arena, txn, state))
-                            .collect::<Vec<_>>();
-                        ans.push(TxnContainerDiff {
-                            idx,
-                            diff: Diff::List(Delta::new().retain(*pos).insert(values)),
-                        })
-                    }
-                }
-                EventHint::DeleteList(s) => {
-                    ans.push(TxnContainerDiff {
-                        idx,
-                        diff: Diff::List(Delta::new().retain(s.start() as usize).delete(s.len())),
-                    });
-                }
-                EventHint::Map { key, value } => ans.push(TxnContainerDiff {
-                    idx,
-                    diff: Diff::Map(ResolvedMapDelta::new().with_entry(
-                        key,
-                        ResolvedMapValue {
-                            value: value.map(|v| ValueOrHandler::from_value(v, arena, txn, state)),
-                            idlp: IdLp::new(peer, lamport),
-                        },
-                    )),
-                }),
-                EventHint::Tree(tree_diff) => {
-                    let mut diff = TreeDiff::default();
-                    diff.push(tree_diff);
-                    ans.push(TxnContainerDiff {
-                        idx,
-                        diff: Diff::Tree(diff),
-                    });
-                }
-                EventHint::MarkEnd => {
-                    // do nothing
-                    break 'outer;
-                }
-            };
-        }
+//                         delta = delta.insert_with_meta(slice.clone(), styles.clone());
+//                     }
+//                     ans.push(TxnContainerDiff {
+//                         idx,
+//                         diff: Diff::Text(delta),
+//                     })
+//                 }
+//                 EventHint::DeleteText {
+//                     span,
+//                     unicode_len: _,
+//                     // we don't need to iter over ops here, because we already
+//                     // know what the events should be
+//                 } => ans.push(TxnContainerDiff {
+//                     idx,
+//                     diff: Diff::Text(
+//                         Delta::new()
+//                             .retain(span.start() as usize)
+//                             .delete(span.len()),
+//                     ),
+//                 }),
+//                 EventHint::InsertList { .. } => {
+//                     for op in ops.iter() {
+//                         let (range, pos) = op.content.as_list().unwrap().as_insert().unwrap();
+//                         let values = arena
+//                             .get_values(range.to_range())
+//                             .into_iter()
+//                             .map(|v| ValueOrHandler::from_value(v, arena, txn, state))
+//                             .collect::<Vec<_>>();
+//                         ans.push(TxnContainerDiff {
+//                             idx,
+//                             diff: Diff::List(Delta::new().retain(*pos).insert(values)),
+//                         })
+//                     }
+//                 }
+//                 EventHint::DeleteList(s) => {
+//                     ans.push(TxnContainerDiff {
+//                         idx,
+//                         diff: Diff::List(Delta::new().retain(s.start() as usize).delete(s.len())),
+//                     });
+//                 }
+//                 EventHint::Map { key, value } => ans.push(TxnContainerDiff {
+//                     idx,
+//                     diff: Diff::Map(ResolvedMapDelta::new().with_entry(
+//                         key,
+//                         ResolvedMapValue {
+//                             value: value.map(|v| ValueOrHandler::from_value(v, arena, txn, state)),
+//                             idlp: IdLp::new(peer, lamport),
+//                         },
+//                     )),
+//                 }),
+//                 EventHint::Tree(tree_diff) => {
+//                     let mut diff = TreeDiff::default();
+//                     diff.push(tree_diff);
+//                     ans.push(TxnContainerDiff {
+//                         idx,
+//                         diff: Diff::Tree(diff),
+//                     });
+//                 }
+//                 EventHint::MarkEnd => {
+//                     // do nothing
+//                     break 'outer;
+//                 }
+//             };
+//         }
 
-        lamport += ops
-            .iter()
-            .map(|x| x.content_len() as Lamport)
-            .sum::<Lamport>();
-    }
+//         lamport += ops
+//             .iter()
+//             .map(|x| x.content_len() as Lamport)
+//             .sum::<Lamport>();
+//     }
 
-    ans
-}
+//     ans
+// }

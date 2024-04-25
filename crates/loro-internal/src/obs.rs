@@ -231,69 +231,69 @@ impl Observer {
     }
 }
 
-#[cfg(test)]
-mod test {
+// #[cfg(test)]
+// mod test {
 
-    use crate::{handler::HandlerTrait, loro::LoroDoc};
+//     use crate::{handler::HandlerTrait, loro::LoroDoc};
 
-    use super::*;
+//     use super::*;
 
-    #[test]
-    fn test_recursive_events() {
-        let loro = Arc::new(LoroDoc::new());
-        let loro_cp = loro.clone();
-        let count = Arc::new(AtomicUsize::new(0));
-        let count_cp = Arc::clone(&count);
-        loro_cp.subscribe_root(Arc::new(move |_| {
-            count_cp.fetch_add(1, Ordering::SeqCst);
-            let mut txn = loro.txn().unwrap();
-            let text = loro.get_text("id");
-            if text.get_value().as_string().unwrap().len() > 10 {
-                return;
-            }
-            text.insert_with_txn(&mut txn, 0, "123").unwrap();
-            txn.commit().unwrap();
-        }));
+//     #[test]
+//     fn test_recursive_events() {
+//         let loro = Arc::new(LoroDoc::new());
+//         let loro_cp = loro.clone();
+//         let count = Arc::new(AtomicUsize::new(0));
+//         let count_cp = Arc::clone(&count);
+//         loro_cp.subscribe_root(Arc::new(move |_| {
+//             count_cp.fetch_add(1, Ordering::SeqCst);
+//             let mut txn = loro.txn().unwrap();
+//             let text = loro.get_text("id");
+//             if text.get_value().as_string().unwrap().len() > 10 {
+//                 return;
+//             }
+//             text.insert_with_txn(&mut txn, 0, "123").unwrap();
+//             txn.commit().unwrap();
+//         }));
 
-        let loro = loro_cp;
-        let mut txn = loro.txn().unwrap();
-        let text = loro.get_text("id");
-        text.insert_with_txn(&mut txn, 0, "123").unwrap();
-        txn.commit().unwrap();
-        let count = count.load(Ordering::SeqCst);
-        assert!(count > 2, "{}", count);
-    }
+//         let loro = loro_cp;
+//         let mut txn = loro.txn().unwrap();
+//         let text = loro.get_text("id");
+//         text.insert_with_txn(&mut txn, 0, "123").unwrap();
+//         txn.commit().unwrap();
+//         let count = count.load(Ordering::SeqCst);
+//         assert!(count > 2, "{}", count);
+//     }
 
-    #[test]
-    fn unsubscribe() {
-        let loro = Arc::new(LoroDoc::new());
-        let count = Arc::new(AtomicUsize::new(0));
-        let count_cp = Arc::clone(&count);
-        let sub = loro.subscribe_root(Arc::new(move |_| {
-            count_cp.fetch_add(1, Ordering::SeqCst);
-        }));
+//     #[test]
+//     fn unsubscribe() {
+//         let loro = Arc::new(LoroDoc::new());
+//         let count = Arc::new(AtomicUsize::new(0));
+//         let count_cp = Arc::clone(&count);
+//         let sub = loro.subscribe_root(Arc::new(move |_| {
+//             count_cp.fetch_add(1, Ordering::SeqCst);
+//         }));
 
-        let text = loro.get_text("id");
+//         let text = loro.get_text("id");
 
-        assert_eq!(count.load(Ordering::SeqCst), 0);
-        {
-            let mut txn = loro.txn().unwrap();
-            text.insert_with_txn(&mut txn, 0, "123").unwrap();
-            txn.commit().unwrap();
-        }
-        assert_eq!(count.load(Ordering::SeqCst), 1);
-        {
-            let mut txn = loro.txn().unwrap();
-            text.insert_with_txn(&mut txn, 0, "123").unwrap();
-            txn.commit().unwrap();
-        }
-        assert_eq!(count.load(Ordering::SeqCst), 2);
-        loro.unsubscribe(sub);
-        {
-            let mut txn = loro.txn().unwrap();
-            text.insert_with_txn(&mut txn, 0, "123").unwrap();
-            txn.commit().unwrap();
-        }
-        assert_eq!(count.load(Ordering::SeqCst), 2);
-    }
-}
+//         assert_eq!(count.load(Ordering::SeqCst), 0);
+//         {
+//             let mut txn = loro.txn().unwrap();
+//             text.insert_with_txn(&mut txn, 0, "123").unwrap();
+//             txn.commit().unwrap();
+//         }
+//         assert_eq!(count.load(Ordering::SeqCst), 1);
+//         {
+//             let mut txn = loro.txn().unwrap();
+//             text.insert_with_txn(&mut txn, 0, "123").unwrap();
+//             txn.commit().unwrap();
+//         }
+//         assert_eq!(count.load(Ordering::SeqCst), 2);
+//         loro.unsubscribe(sub);
+//         {
+//             let mut txn = loro.txn().unwrap();
+//             text.insert_with_txn(&mut txn, 0, "123").unwrap();
+//             txn.commit().unwrap();
+//         }
+//         assert_eq!(count.load(Ordering::SeqCst), 2);
+//     }
+// }

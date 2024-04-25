@@ -8,7 +8,7 @@ use loro_common::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{container::tree::tree_op::TreeOp, encoding::encode_reordered::MAX_COLLECTION_SIZE};
+use crate::encoding::encode_reordered::MAX_COLLECTION_SIZE;
 
 use super::arena::{DecodedArenas, EncodedRegisters};
 
@@ -395,28 +395,28 @@ pub struct EncodedTreeMove {
     pub parent_cnt: Counter,
 }
 
-impl EncodedTreeMove {
-    pub fn from_op(op: &TreeOp) -> Self {
-        Self {
-            subject_peer: op.target.peer,
-            subject_cnt: op.target.counter,
-            is_parent_null: op.parent.is_none(),
-            parent_peer: op.parent.map(|x| x.peer).unwrap_or(0),
-            parent_cnt: op.parent.map(|x| x.counter).unwrap_or(0),
-        }
-    }
+// impl EncodedTreeMove {
+//     pub fn from_op(op: &TreeOp) -> Self {
+//         Self {
+//             subject_peer: op.target.peer,
+//             subject_cnt: op.target.counter,
+//             is_parent_null: op.parent.is_none(),
+//             parent_peer: op.parent.map(|x| x.peer).unwrap_or(0),
+//             parent_cnt: op.parent.map(|x| x.counter).unwrap_or(0),
+//         }
+//     }
 
-    pub fn as_tree_op(&self) -> TreeOp {
-        TreeOp {
-            target: TreeID::new(self.subject_peer, self.subject_cnt),
-            parent: if self.is_parent_null {
-                None
-            } else {
-                Some(TreeID::new(self.parent_peer, self.parent_cnt))
-            },
-        }
-    }
-}
+//     pub fn as_tree_op(&self) -> TreeOp {
+//         TreeOp {
+//             target: TreeID::new(self.subject_peer, self.subject_cnt),
+//             parent: if self.is_parent_null {
+//                 None
+//             } else {
+//                 Some(TreeID::new(self.parent_peer, self.parent_cnt))
+//             },
+//         }
+//     }
+// }
 
 pub struct ValueWriter {
     buffer: Vec<u8>,

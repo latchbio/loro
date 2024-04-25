@@ -8,10 +8,10 @@
 
 pub mod arena;
 pub mod diff_calc;
-pub mod handler;
+// pub mod handler;
 pub use event::{ContainerDiff, DiffEvent, DocDiff};
 pub use fxhash::FxHashMap;
-pub use handler::{BasicHandler, HandlerTrait, ListHandler, MapHandler, TextHandler, TreeHandler};
+// pub use handler::{BasicHandler, HandlerTrait, ListHandler, MapHandler, TextHandler, TreeHandler};
 pub use loro::LoroDoc;
 pub use oplog::OpLog;
 pub use state::DocState;
@@ -32,15 +32,15 @@ pub mod op;
 pub mod version;
 
 mod error;
-#[cfg(feature = "test_utils")]
-pub mod fuzz;
+// #[cfg(feature = "test_utils")]
+// pub mod fuzz;
 mod span;
-#[cfg(test)]
-pub mod tests;
-mod utils;
-pub use utils::string_slice::StringSlice;
+// #[cfg(test)]
+// pub mod tests;
+// mod utils;
+// pub use utils::string_slice::StringSlice;
 
-pub mod delta;
+// pub mod delta;
 pub mod event;
 
 pub use error::{LoroError, LoroResult};
@@ -55,5 +55,5 @@ pub(crate) use loro_common::InternalString;
 
 pub use container::ContainerType;
 pub use loro_common::{loro_value, to_value};
-pub use value::{ApplyDiff, LoroValue, ToJson};
+pub use value::{LoroValue, ToJson};
 pub use version::VersionVector;

@@ -39,10 +39,10 @@ pub mod idx {
         #[allow(unused)]
         pub(crate) fn get_type(self) -> ContainerType {
             match (self.0 & Self::TYPE_MASK) >> 28 {
-                0 => ContainerType::Map,
-                1 => ContainerType::List,
-                2 => ContainerType::Text,
-                3 => ContainerType::Tree,
+                // 0 => ContainerType::Map,
+                // 1 => ContainerType::List,
+                // 2 => ContainerType::Text,
+                // 3 => ContainerType::Tree,
                 _ => unreachable!(),
             }
         }
@@ -53,15 +53,7 @@ pub mod idx {
         }
 
         pub(crate) fn from_index_and_type(index: u32, container_type: ContainerType) -> Self {
-            let prefix: u32 = match container_type {
-                ContainerType::Map => 0,
-                ContainerType::List => 1,
-                ContainerType::Text => 2,
-                ContainerType::Tree => 3,
-                ContainerType::Unknown(_) => unreachable!(),
-            } << 28;
-
-            Self(prefix | index)
+            unreachable!()
         }
 
         // TODO: better way
@@ -71,10 +63,10 @@ pub mod idx {
     }
 }
 
-pub mod list;
-pub mod map;
-pub mod richtext;
-pub mod tree;
+// pub mod list;
+// pub mod map;
+// pub mod richtext;
+// pub mod tree;
 
 use idx::ContainerIdx;
 
@@ -185,28 +177,28 @@ impl ContainerIdRaw {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
+// #[cfg(test)]
+// mod test {
+//     use super::*;
 
-    #[test]
-    fn container_id_convert() {
-        let container_id = ContainerID::new_normal(ID::new(12, 12), ContainerType::List);
-        let s = container_id.to_string();
-        assert_eq!(s, "cid:12@12:List");
-        let actual = ContainerID::try_from(s.as_str()).unwrap();
-        assert_eq!(actual, container_id);
+//     #[test]
+//     fn container_id_convert() {
+//         let container_id = ContainerID::new_normal(ID::new(12, 12), ContainerType::List);
+//         let s = container_id.to_string();
+//         assert_eq!(s, "cid:12@12:List");
+//         let actual = ContainerID::try_from(s.as_str()).unwrap();
+//         assert_eq!(actual, container_id);
 
-        let container_id = ContainerID::new_root("123", ContainerType::Map);
-        let s = container_id.to_string();
-        assert_eq!(s, "cid:root-123:Map");
-        let actual = ContainerID::try_from(s.as_str()).unwrap();
-        assert_eq!(actual, container_id);
+//         let container_id = ContainerID::new_root("123", ContainerType::Map);
+//         let s = container_id.to_string();
+//         assert_eq!(s, "cid:root-123:Map");
+//         let actual = ContainerID::try_from(s.as_str()).unwrap();
+//         assert_eq!(actual, container_id);
 
-        let container_id = ContainerID::new_root("kkk", ContainerType::Text);
-        let s = container_id.to_string();
-        assert_eq!(s, "cid:root-kkk:Text");
-        let actual = ContainerID::try_from(s.as_str()).unwrap();
-        assert_eq!(actual, container_id);
-    }
-}
+//         let container_id = ContainerID::new_root("kkk", ContainerType::Text);
+//         let s = container_id.to_string();
+//         assert_eq!(s, "cid:root-kkk:Text");
+//         let actual = ContainerID::try_from(s.as_str()).unwrap();
+//         assert_eq!(actual, container_id);
+//     }
+// }

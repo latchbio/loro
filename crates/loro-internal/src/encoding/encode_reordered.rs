@@ -13,12 +13,15 @@ use serde_columnar::{columnar, ColumnarError};
 use crate::{
     arena::SharedArena,
     change::{Change, Lamport, Timestamp},
-    container::{list::list_op::DeleteSpanWithId, richtext::TextStyleInfoFlag},
+    // container::{list::list_op::DeleteSpanWithId, richtext::TextStyleInfoFlag},
     encoding::StateSnapshotDecodeContext,
-    op::{FutureInnerContent, Op, OpContainer, OpWithId, SliceRange},
+    op::{FutureInnerContent, Op, OpContainer, OpWithId},
     state::ContainerState,
     version::Frontiers,
-    DocState, LoroDoc, OpLog, VersionVector,
+    DocState,
+    LoroDoc,
+    OpLog,
+    VersionVector,
 };
 pub(super) use encode::ValueRegister;
 
@@ -1122,20 +1125,20 @@ mod encode {
 
     fn get_op_prop(op: &Op, registers: &mut EncodedRegisters) -> i32 {
         match &op.content {
-            crate::op::InnerContent::List(list) => match list {
-                crate::container::list::list_op::InnerListOp::Insert { pos, .. } => *pos as i32,
-                crate::container::list::list_op::InnerListOp::InsertText { pos, .. } => *pos as i32,
-                crate::container::list::list_op::InnerListOp::Delete(span) => span.span.pos as i32,
-                crate::container::list::list_op::InnerListOp::StyleStart { start, .. } => {
-                    *start as i32
-                }
-                crate::container::list::list_op::InnerListOp::StyleEnd => 0,
-            },
-            crate::op::InnerContent::Map(map) => {
-                let key = registers.key.register(&map.key);
-                key as i32
-            }
-            crate::op::InnerContent::Tree(_) => 0,
+            // crate::op::InnerContent::List(list) => match list {
+            //     crate::container::list::list_op::InnerListOp::Insert { pos, .. } => *pos as i32,
+            //     crate::container::list::list_op::InnerListOp::InsertText { pos, .. } => *pos as i32,
+            //     crate::container::list::list_op::InnerListOp::Delete(span) => span.span.pos as i32,
+            //     crate::container::list::list_op::InnerListOp::StyleStart { start, .. } => {
+            //         *start as i32
+            //     }
+            //     crate::container::list::list_op::InnerListOp::StyleEnd => 0,
+            // },
+            // crate::op::InnerContent::Map(map) => {
+            //     let key = registers.key.register(&map.key);
+            //     key as i32
+            // }
+            // crate::op::InnerContent::Tree(_) => 0,
             // The future should not use register to encode prop
             crate::op::InnerContent::Future(f) => get_future_op_prop(f),
         }
@@ -1143,12 +1146,12 @@ mod encode {
 
     fn get_sorting_prop(op: &Op, registers: &mut EncodedRegisters) -> i32 {
         match &op.content {
-            crate::op::InnerContent::List(_) => 0,
-            crate::op::InnerContent::Map(map) => {
-                let key = registers.key.register(&map.key);
-                key as i32
-            }
-            crate::op::InnerContent::Tree(..) => 0,
+            // crate::op::InnerContent::List(_) => 0,
+            // crate::op::InnerContent::Map(map) => {
+            //     let key = registers.key.register(&map.key);
+            //     key as i32
+            // }
+            // crate::op::InnerContent::Tree(..) => 0,
             crate::op::InnerContent::Future(f) => match f {
                 FutureInnerContent::Unknown { .. } => 0,
             },
@@ -1164,54 +1167,54 @@ mod encode {
         registers: &mut EncodedRegisters,
     ) -> (ValueKind, usize) {
         let value = match &op.content {
-            crate::op::InnerContent::List(list) => match list {
-                crate::container::list::list_op::InnerListOp::Insert { slice, .. } => {
-                    assert_eq!(op.container.get_type(), ContainerType::List);
-                    let value = arena.get_values(slice.0.start as usize..slice.0.end as usize);
-                    Value::LoroValueArray(value)
-                }
-                crate::container::list::list_op::InnerListOp::InsertText {
-                    slice,
-                    unicode_start: _,
-                    unicode_len: _,
-                    ..
-                } => {
-                    // TODO: refactor this from_utf8 can be done internally without checking
-                    Value::Str(std::str::from_utf8(slice.as_bytes()).unwrap())
-                }
-                crate::container::list::list_op::InnerListOp::Delete(span) => {
-                    delete_start.push(EncodedDeleteStartId {
-                        peer_idx: registers.peer.register(&span.id_start.peer),
-                        counter: span.id_start.counter,
-                        len: span.span.signed_len,
-                    });
-                    Value::DeleteSeq
-                }
-                crate::container::list::list_op::InnerListOp::StyleStart {
-                    start,
-                    end,
-                    key,
-                    value,
-                    info,
-                } => Value::MarkStart(MarkStart {
-                    len: end - start,
-                    key: key.clone(),
-                    value: value.clone(),
-                    info: info.to_byte(),
-                }),
-                crate::container::list::list_op::InnerListOp::StyleEnd => Value::Null,
-            },
-            crate::op::InnerContent::Map(map) => {
-                assert_eq!(op.container.get_type(), ContainerType::Map);
-                match &map.value {
-                    Some(v) => Value::LoroValue(v.clone()),
-                    None => Value::DeleteOnce,
-                }
-            }
-            crate::op::InnerContent::Tree(t) => {
-                assert_eq!(op.container.get_type(), ContainerType::Tree);
-                Value::TreeMove(EncodedTreeMove::from_op(t))
-            }
+            // crate::op::InnerContent::List(list) => match list {
+            //     crate::container::list::list_op::InnerListOp::Insert { slice, .. } => {
+            //         assert_eq!(op.container.get_type(), ContainerType::List);
+            //         let value = arena.get_values(slice.0.start as usize..slice.0.end as usize);
+            //         Value::LoroValueArray(value)
+            //     }
+            //     crate::container::list::list_op::InnerListOp::InsertText {
+            //         slice,
+            //         unicode_start: _,
+            //         unicode_len: _,
+            //         ..
+            //     } => {
+            //         // TODO: refactor this from_utf8 can be done internally without checking
+            //         Value::Str(std::str::from_utf8(slice.as_bytes()).unwrap())
+            //     }
+            //     crate::container::list::list_op::InnerListOp::Delete(span) => {
+            //         delete_start.push(EncodedDeleteStartId {
+            //             peer_idx: registers.peer.register(&span.id_start.peer),
+            //             counter: span.id_start.counter,
+            //             len: span.span.signed_len,
+            //         });
+            //         Value::DeleteSeq
+            //     }
+            //     crate::container::list::list_op::InnerListOp::StyleStart {
+            //         start,
+            //         end,
+            //         key,
+            //         value,
+            //         info,
+            //     } => Value::MarkStart(MarkStart {
+            //         len: end - start,
+            //         key: key.clone(),
+            //         value: value.clone(),
+            //         info: info.to_byte(),
+            //     }),
+            //     crate::container::list::list_op::InnerListOp::StyleEnd => Value::Null,
+            // },
+            // crate::op::InnerContent::Map(map) => {
+            //     assert_eq!(op.container.get_type(), ContainerType::Map);
+            //     match &map.value {
+            //         Some(v) => Value::LoroValue(v.clone()),
+            //         None => Value::DeleteOnce,
+            //     }
+            // }
+            // crate::op::InnerContent::Tree(t) => {
+            //     assert_eq!(op.container.get_type(), ContainerType::Tree);
+            //     Value::TreeMove(EncodedTreeMove::from_op(t))
+            // }
             crate::op::InnerContent::Future(f) => match f {
                 FutureInnerContent::Unknown { op_len: _, value } => Value::from_owned(value),
             },
@@ -1236,101 +1239,101 @@ fn decode_op(
     prop: i32,
 ) -> LoroResult<crate::op::InnerContent> {
     let content = match cid.container_type() {
-        ContainerType::Text => match value {
-            Value::Str(s) => {
-                let (slice, result) = shared_arena.alloc_str_with_slice(s);
-                crate::op::InnerContent::List(
-                    crate::container::list::list_op::InnerListOp::InsertText {
-                        slice,
-                        unicode_start: result.start as u32,
-                        unicode_len: (result.end - result.start) as u32,
-                        pos: prop as u32,
-                    },
-                )
-            }
-            Value::DeleteSeq => {
-                let del_start = del_iter.next().unwrap()?;
-                let peer_idx = del_start.peer_idx;
-                let cnt = del_start.counter;
-                let len = del_start.len;
-                crate::op::InnerContent::List(crate::container::list::list_op::InnerListOp::Delete(
-                    DeleteSpanWithId::new(
-                        ID::new(arenas.peer_ids.peer_ids[peer_idx], cnt as Counter),
-                        prop as isize,
-                        len,
-                    ),
-                ))
-            }
-            Value::MarkStart(mark) => crate::op::InnerContent::List(
-                crate::container::list::list_op::InnerListOp::StyleStart {
-                    start: prop as u32,
-                    end: prop as u32 + mark.len,
-                    key: mark.key.into(),
-                    value: mark.value,
-                    info: TextStyleInfoFlag::from_byte(mark.info),
-                },
-            ),
-            Value::Null => crate::op::InnerContent::List(
-                crate::container::list::list_op::InnerListOp::StyleEnd,
-            ),
-            _ => unreachable!(),
-        },
-        ContainerType::Map => {
-            let key = arenas
-                .keys
-                .keys
-                .get(prop as usize)
-                .ok_or(LoroError::DecodeDataCorruptionError)?
-                .clone();
-            match value {
-                Value::DeleteOnce => {
-                    crate::op::InnerContent::Map(crate::container::map::MapSet { key, value: None })
-                }
-                Value::LoroValue(v) => {
-                    crate::op::InnerContent::Map(crate::container::map::MapSet {
-                        key,
-                        value: Some(v.clone()),
-                    })
-                }
-                _ => unreachable!(),
-            }
-        }
-        ContainerType::List => {
-            let pos = prop as usize;
-            match value {
-                Value::LoroValueArray(arr) => {
-                    let range = shared_arena.alloc_values(arr.into_iter());
-                    crate::op::InnerContent::List(
-                        crate::container::list::list_op::InnerListOp::Insert {
-                            slice: SliceRange::new(range.start as u32..range.end as u32),
-                            pos,
-                        },
-                    )
-                }
-                Value::DeleteSeq => {
-                    let del_start = del_iter.next().unwrap()?;
-                    let peer_idx = del_start.peer_idx;
-                    let cnt = del_start.counter;
-                    let len = del_start.len;
-                    crate::op::InnerContent::List(
-                        crate::container::list::list_op::InnerListOp::Delete(
-                            DeleteSpanWithId::new(
-                                ID::new(arenas.peer_ids[peer_idx], cnt as Counter),
-                                pos as isize,
-                                len,
-                            ),
-                        ),
-                    )
-                }
-                _ => unreachable!(),
-            }
-        }
-        ContainerType::Tree => match value {
-            Value::TreeMove(op) => crate::op::InnerContent::Tree(op.as_tree_op()),
-            _ => {
-                unreachable!()
-            }
-        },
+        // ContainerType::Text => match value {
+        //     Value::Str(s) => {
+        //         let (slice, result) = shared_arena.alloc_str_with_slice(s);
+        //         crate::op::InnerContent::List(
+        //             crate::container::list::list_op::InnerListOp::InsertText {
+        //                 slice,
+        //                 unicode_start: result.start as u32,
+        //                 unicode_len: (result.end - result.start) as u32,
+        //                 pos: prop as u32,
+        //             },
+        //         )
+        //     }
+        //     Value::DeleteSeq => {
+        //         let del_start = del_iter.next().unwrap()?;
+        //         let peer_idx = del_start.peer_idx;
+        //         let cnt = del_start.counter;
+        //         let len = del_start.len;
+        //         crate::op::InnerContent::List(crate::container::list::list_op::InnerListOp::Delete(
+        //             DeleteSpanWithId::new(
+        //                 ID::new(arenas.peer_ids.peer_ids[peer_idx], cnt as Counter),
+        //                 prop as isize,
+        //                 len,
+        //             ),
+        //         ))
+        //     }
+        //     Value::MarkStart(mark) => crate::op::InnerContent::List(
+        //         crate::container::list::list_op::InnerListOp::StyleStart {
+        //             start: prop as u32,
+        //             end: prop as u32 + mark.len,
+        //             key: mark.key.into(),
+        //             value: mark.value,
+        //             info: TextStyleInfoFlag::from_byte(mark.info),
+        //         },
+        //     ),
+        //     Value::Null => crate::op::InnerContent::List(
+        //         crate::container::list::list_op::InnerListOp::StyleEnd,
+        //     ),
+        //     _ => unreachable!(),
+        // },
+        // ContainerType::Map => {
+        //     let key = arenas
+        //         .keys
+        //         .keys
+        //         .get(prop as usize)
+        //         .ok_or(LoroError::DecodeDataCorruptionError)?
+        //         .clone();
+        //     match value {
+        //         Value::DeleteOnce => {
+        //             crate::op::InnerContent::Map(crate::container::map::MapSet { key, value: None })
+        //         }
+        //         Value::LoroValue(v) => {
+        //             crate::op::InnerContent::Map(crate::container::map::MapSet {
+        //                 key,
+        //                 value: Some(v.clone()),
+        //             })
+        //         }
+        //         _ => unreachable!(),
+        //     }
+        // }
+        // ContainerType::List => {
+        //     let pos = prop as usize;
+        //     match value {
+        //         Value::LoroValueArray(arr) => {
+        //             let range = shared_arena.alloc_values(arr.into_iter());
+        //             crate::op::InnerContent::List(
+        //                 crate::container::list::list_op::InnerListOp::Insert {
+        //                     slice: SliceRange::new(range.start as u32..range.end as u32),
+        //                     pos,
+        //                 },
+        //             )
+        //         }
+        //         Value::DeleteSeq => {
+        //             let del_start = del_iter.next().unwrap()?;
+        //             let peer_idx = del_start.peer_idx;
+        //             let cnt = del_start.counter;
+        //             let len = del_start.len;
+        //             crate::op::InnerContent::List(
+        //                 crate::container::list::list_op::InnerListOp::Delete(
+        //                     DeleteSpanWithId::new(
+        //                         ID::new(arenas.peer_ids[peer_idx], cnt as Counter),
+        //                         pos as isize,
+        //                         len,
+        //                     ),
+        //                 ),
+        //             )
+        //         }
+        //         _ => unreachable!(),
+        //     }
+        // }
+        // ContainerType::Tree => match value {
+        //     Value::TreeMove(op) => crate::op::InnerContent::Tree(op.as_tree_op()),
+        //     _ => {
+        //         unreachable!()
+        //     }
+        // },
         ContainerType::Unknown(_) => crate::op::InnerContent::Future(FutureInnerContent::Unknown {
             op_len,
             value: value.into_owned(),
@@ -1498,77 +1501,77 @@ struct EncodedStateInfo {
     state_bytes_len: u32,
 }
 
-#[cfg(test)]
-mod test {
-    use std::sync::Arc;
+// #[cfg(test)]
+// mod test {
+//     use std::sync::Arc;
 
-    use loro_common::LoroValue;
+//     use loro_common::LoroValue;
 
-    use crate::fx_map;
+//     use crate::fx_map;
 
-    use super::*;
+//     use super::*;
 
-    fn test_loro_value_read_write(v: impl Into<LoroValue>, container_id: Option<ContainerID>) {
-        let v = v.into();
-        let id = match &container_id {
-            Some(ContainerID::Root { .. }) => ID::new(u64::MAX, 0),
-            Some(ContainerID::Normal { peer, counter, .. }) => ID::new(*peer, *counter),
-            None => ID::new(u64::MAX, 0),
-        };
+//     fn test_loro_value_read_write(v: impl Into<LoroValue>, container_id: Option<ContainerID>) {
+//         let v = v.into();
+//         let id = match &container_id {
+//             Some(ContainerID::Root { .. }) => ID::new(u64::MAX, 0),
+//             Some(ContainerID::Normal { peer, counter, .. }) => ID::new(*peer, *counter),
+//             None => ID::new(u64::MAX, 0),
+//         };
 
-        let mut registers = EncodedRegisters {
-            key: ValueRegister::new(),
-            container: ValueRegister::new(),
-            peer: ValueRegister::new(),
-        };
+//         let mut registers = EncodedRegisters {
+//             key: ValueRegister::new(),
+//             container: ValueRegister::new(),
+//             peer: ValueRegister::new(),
+//         };
 
-        let mut writer = ValueWriter::new();
-        let (kind, _) = writer.write_value_content(&v, &mut registers);
+//         let mut writer = ValueWriter::new();
+//         let (kind, _) = writer.write_value_content(&v, &mut registers);
 
-        let binding = writer.finish();
-        let mut reader = ValueReader::new(binding.as_slice());
+//         let binding = writer.finish();
+//         let mut reader = ValueReader::new(binding.as_slice());
 
-        let ans = reader
-            .read_value_content(kind, &registers.key.unwrap_vec(), id)
-            .unwrap();
-        assert_eq!(v, ans)
-    }
+//         let ans = reader
+//             .read_value_content(kind, &registers.key.unwrap_vec(), id)
+//             .unwrap();
+//         assert_eq!(v, ans)
+//     }
 
-    #[test]
-    fn test_value_read_write() {
-        test_loro_value_read_write(true, None);
-        test_loro_value_read_write(false, None);
-        test_loro_value_read_write(123, None);
-        test_loro_value_read_write(1.23, None);
-        test_loro_value_read_write(LoroValue::Null, None);
-        test_loro_value_read_write(
-            LoroValue::Binary(Arc::new(vec![123, 223, 255, 0, 1, 2, 3])),
-            None,
-        );
-        test_loro_value_read_write("sldk;ajfas;dlkfas测试", None);
-        // we won't encode root container by `value content`
-        // test_loro_value_read_write(
-        //     LoroValue::Container(ContainerID::new_root("name", ContainerType::Text)),
-        //     Some(ContainerID::new_root("name", ContainerType::Text)),
-        // );
-        test_loro_value_read_write(
-            LoroValue::Container(ContainerID::new_normal(
-                ID::new(u64::MAX, 123),
-                ContainerType::Tree,
-            )),
-            Some(ContainerID::new_normal(
-                ID::new(u64::MAX, 123),
-                ContainerType::Tree,
-            )),
-        );
-        test_loro_value_read_write(vec![1i32, 2, 3], None);
-        test_loro_value_read_write(
-            LoroValue::Map(Arc::new(fx_map![
-                "1".into() => 123.into(),
-                "2".into() => "123".into(),
-                "3".into() => vec![true].into()
-            ])),
-            None,
-        );
-    }
-}
+//     #[test]
+//     fn test_value_read_write() {
+//         test_loro_value_read_write(true, None);
+//         test_loro_value_read_write(false, None);
+//         test_loro_value_read_write(123, None);
+//         test_loro_value_read_write(1.23, None);
+//         test_loro_value_read_write(LoroValue::Null, None);
+//         test_loro_value_read_write(
+//             LoroValue::Binary(Arc::new(vec![123, 223, 255, 0, 1, 2, 3])),
+//             None,
+//         );
+//         test_loro_value_read_write("sldk;ajfas;dlkfas测试", None);
+//         // we won't encode root container by `value content`
+//         // test_loro_value_read_write(
+//         //     LoroValue::Container(ContainerID::new_root("name", ContainerType::Text)),
+//         //     Some(ContainerID::new_root("name", ContainerType::Text)),
+//         // );
+//         test_loro_value_read_write(
+//             LoroValue::Container(ContainerID::new_normal(
+//                 ID::new(u64::MAX, 123),
+//                 ContainerType::Tree,
+//             )),
+//             Some(ContainerID::new_normal(
+//                 ID::new(u64::MAX, 123),
+//                 ContainerType::Tree,
+//             )),
+//         );
+//         test_loro_value_read_write(vec![1i32, 2, 3], None);
+//         test_loro_value_read_write(
+//             LoroValue::Map(Arc::new(fx_map![
+//                 "1".into() => 123.into(),
+//                 "2".into() => "123".into(),
+//                 "3".into() => vec![true].into()
+//             ])),
+//             None,
+//         );
+//     }
+// }

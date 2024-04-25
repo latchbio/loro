@@ -10,33 +10,34 @@ use loro_common::{ContainerID, LoroError, LoroResult};
 
 use crate::{
     configure::{Configure, DefaultRandom, SecureRandomGenerator},
-    container::{
-        idx::ContainerIdx, list::list_op::ListOp, map::MapSet, richtext::config::StyleConfigMap,
-        tree::tree_op::TreeOp, ContainerIdRaw,
-    },
+    container::{idx::ContainerIdx, ContainerIdRaw},
     cursor::Cursor,
-    delta::DeltaItem,
+    // delta::DeltaItem,
     encoding::{StateSnapshotDecodeContext, StateSnapshotEncoder},
     event::{Diff, EventTriggerKind, Index, InternalContainerDiff, InternalDiff},
     fx_map,
-    handler::ValueOrHandler,
+    // handler::ValueOrHandler,
     id::PeerID,
-    op::{FutureRawOpContent, ListSlice, Op, OpContainer, RawOp, RawOpContent},
+    op::{FutureRawOpContent, Op, OpContainer, RawOp, RawOpContent},
     txn::Transaction,
     version::Frontiers,
-    ContainerDiff, ContainerType, DocDiff, InternalString, LoroValue,
+    ContainerDiff,
+    ContainerType,
+    DocDiff,
+    InternalString,
+    LoroValue,
 };
 
-mod list_state;
-mod map_state;
-mod richtext_state;
-mod tree_state;
+// mod list_state;
+// mod map_state;
+// mod richtext_state;
+// mod tree_state;
 mod unknown_state;
 
-pub(crate) use list_state::ListState;
-pub(crate) use map_state::MapState;
-pub(crate) use richtext_state::RichtextState;
-pub(crate) use tree_state::{get_meta_value, TreeParentId, TreeState};
+// pub(crate) use list_state::ListState;
+// pub(crate) use map_state::MapState;
+// pub(crate) use richtext_state::RichtextState;
+// pub(crate) use tree_state::{get_meta_value, TreeParentId, TreeState};
 
 use self::unknown_state::UnknownState;
 
@@ -228,29 +229,29 @@ impl<T: ContainerState> ContainerState for Box<T> {
 #[enum_dispatch(ContainerState)]
 #[derive(EnumAsInner, Clone, Debug)]
 pub enum State {
-    ListState(Box<ListState>),
-    MapState(Box<MapState>),
-    RichtextState(Box<RichtextState>),
-    TreeState(Box<TreeState>),
+    // ListState(Box<ListState>),
+    // MapState(Box<MapState>),
+    // RichtextState(Box<RichtextState>),
+    // TreeState(Box<TreeState>),
     UnknownState(Box<UnknownState>),
 }
 
 impl State {
-    pub fn new_list(idx: ContainerIdx) -> Self {
-        Self::ListState(Box::new(ListState::new(idx)))
-    }
+    // pub fn new_list(idx: ContainerIdx) -> Self {
+    //     Self::ListState(Box::new(ListState::new(idx)))
+    // }
 
-    pub fn new_map(idx: ContainerIdx) -> Self {
-        Self::MapState(Box::new(MapState::new(idx)))
-    }
+    // pub fn new_map(idx: ContainerIdx) -> Self {
+    //     Self::MapState(Box::new(MapState::new(idx)))
+    // }
 
-    pub fn new_richtext(idx: ContainerIdx, config: Arc<RwLock<StyleConfigMap>>) -> Self {
-        Self::RichtextState(Box::new(RichtextState::new(idx, config)))
-    }
+    // pub fn new_richtext(idx: ContainerIdx, config: Arc<RwLock<StyleConfigMap>>) -> Self {
+    //     Self::RichtextState(Box::new(RichtextState::new(idx, config)))
+    // }
 
-    pub fn new_tree(idx: ContainerIdx) -> Self {
-        Self::TreeState(Box::new(TreeState::new(idx)))
-    }
+    // pub fn new_tree(idx: ContainerIdx) -> Self {
+    //     Self::TreeState(Box::new(TreeState::new(idx)))
+    // }
 
     pub fn new_unknown(id: ContainerID) -> Self {
         Self::UnknownState(Box::new(UnknownState::new(id)))
@@ -553,87 +554,89 @@ impl DocState {
     }
 
     fn set_container_parent_by_op(&mut self, raw_op: &RawOp) {
-        let container = raw_op.container;
-        match &raw_op.content {
-            RawOpContent::List(op) => {
-                if let ListOp::Insert {
-                    slice: ListSlice::RawData(list),
-                    ..
-                } = op
-                {
-                    let list = match list {
-                        std::borrow::Cow::Borrowed(list) => list.iter(),
-                        std::borrow::Cow::Owned(list) => list.iter(),
-                    };
-                    for value in list {
-                        if value.is_container() {
-                            let c = value.as_container().unwrap();
-                            let idx = self.arena.register_container(c);
-                            self.arena.set_parent(idx, Some(container));
-                        }
-                    }
-                }
-            }
-            RawOpContent::Map(MapSet { key: _, value }) => {
-                if value.is_none() {
-                    return;
-                }
-                let value = value.as_ref().unwrap();
-                if value.is_container() {
-                    let idx = self.arena.register_container(value.as_container().unwrap());
-                    self.arena.set_parent(idx, Some(container));
-                }
-            }
-            RawOpContent::Tree(TreeOp { target, .. }) => {
-                // create associated metadata container
-                // TODO: maybe we could create map container only when setting metadata
-                let container_id = target.associated_meta_container();
-                let child_idx = self.arena.register_container(&container_id);
-                self.arena.set_parent(child_idx, Some(container));
-            }
-            RawOpContent::Future(f) => match f {
-                FutureRawOpContent::Unknown { .. } => unreachable!(),
-            },
-        }
+        return;
+        // let container = raw_op.container;
+        // match &raw_op.content {
+        //     RawOpContent::List(op) => {
+        //         if let ListOp::Insert {
+        //             slice: ListSlice::RawData(list),
+        //             ..
+        //         } = op
+        //         {
+        //             let list = match list {
+        //                 std::borrow::Cow::Borrowed(list) => list.iter(),
+        //                 std::borrow::Cow::Owned(list) => list.iter(),
+        //             };
+        //             for value in list {
+        //                 if value.is_container() {
+        //                     let c = value.as_container().unwrap();
+        //                     let idx = self.arena.register_container(c);
+        //                     self.arena.set_parent(idx, Some(container));
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     RawOpContent::Map(MapSet { key: _, value }) => {
+        //         if value.is_none() {
+        //             return;
+        //         }
+        //         let value = value.as_ref().unwrap();
+        //         if value.is_container() {
+        //             let idx = self.arena.register_container(value.as_container().unwrap());
+        //             self.arena.set_parent(idx, Some(container));
+        //         }
+        //     }
+        //     RawOpContent::Tree(TreeOp { target, .. }) => {
+        //         // create associated metadata container
+        //         // TODO: maybe we could create map container only when setting metadata
+        //         let container_id = target.associated_meta_container();
+        //         let child_idx = self.arena.register_container(&container_id);
+        //         self.arena.set_parent(child_idx, Some(container));
+        //     }
+        //     RawOpContent::Future(f) => match f {
+        //         FutureRawOpContent::Unknown { .. } => unreachable!(),
+        //     },
+        // }
     }
 
     fn set_parent_by_diff(&mut self, diff: &InternalDiff, container: ContainerIdx) {
-        match diff {
-            InternalDiff::ListRaw(list) => {
-                for span in list.iter() {
-                    if let DeltaItem::Insert { insert: value, .. } = span {
-                        for slices in value.ranges.iter() {
-                            for i in slices.0.start..slices.0.end {
-                                let value = self.arena.get_value(i as usize).unwrap();
-                                if value.is_container() {
-                                    let c = value.as_container().unwrap();
-                                    let idx = self.arena.register_container(c);
-                                    self.arena.set_parent(idx, Some(container));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            InternalDiff::Map(delta) => {
-                for (_, value) in delta.updated.iter() {
-                    if let Some(LoroValue::Container(c)) = &value.value {
-                        let idx = self.arena.register_container(c);
-                        self.arena.set_parent(idx, Some(container));
-                    }
-                }
-            }
-            InternalDiff::Tree(tree) => {
-                for diff in tree.diff.iter() {
-                    let target = &diff.target;
-                    let container_id = target.associated_meta_container();
-                    let child_idx = self.arena.register_container(&container_id);
-                    self.arena.set_parent(child_idx, Some(container));
-                }
-            }
-            InternalDiff::RichtextRaw(_) => {}
-            InternalDiff::Unknown(_) => {}
-        }
+        return;
+        // match diff {
+        //     InternalDiff::ListRaw(list) => {
+        //         for span in list.iter() {
+        //             if let DeltaItem::Insert { insert: value, .. } = span {
+        //                 for slices in value.ranges.iter() {
+        //                     for i in slices.0.start..slices.0.end {
+        //                         let value = self.arena.get_value(i as usize).unwrap();
+        //                         if value.is_container() {
+        //                             let c = value.as_container().unwrap();
+        //                             let idx = self.arena.register_container(c);
+        //                             self.arena.set_parent(idx, Some(container));
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     InternalDiff::Map(delta) => {
+        //         for (_, value) in delta.updated.iter() {
+        //             if let Some(LoroValue::Container(c)) = &value.value {
+        //                 let idx = self.arena.register_container(c);
+        //                 self.arena.set_parent(idx, Some(container));
+        //             }
+        //         }
+        //     }
+        //     InternalDiff::Tree(tree) => {
+        //         for diff in tree.diff.iter() {
+        //             let target = &diff.target;
+        //             let container_id = target.associated_meta_container();
+        //             let child_idx = self.arena.register_container(&container_id);
+        //             self.arena.set_parent(child_idx, Some(container));
+        //         }
+        //     }
+        //     InternalDiff::RichtextRaw(_) => {}
+        //     InternalDiff::Unknown(_) => {}
+        // };
     }
 
     pub(crate) fn init_container(
@@ -737,33 +740,33 @@ impl DocState {
 
     /// id can be a str, ContainerID, or ContainerIdRaw.
     /// if it's str it will use Root container, which will not be None
-    pub fn get_text<I: Into<ContainerIdRaw>>(
-        &mut self,
-        id: I,
-    ) -> Option<&mut richtext_state::RichtextState> {
-        let id: ContainerIdRaw = id.into();
-        let cid;
-        let idx = match id {
-            ContainerIdRaw::Root { name } => {
-                cid = crate::container::ContainerID::Root {
-                    name,
-                    container_type: crate::ContainerType::Text,
-                };
-                Some(self.arena.register_container(&cid))
-            }
-            ContainerIdRaw::Normal { id: _ } => {
-                cid = id.with_type(crate::ContainerType::Text);
-                self.arena.id_to_idx(&cid)
-            }
-        };
+    // pub fn get_text<I: Into<ContainerIdRaw>>(
+    //     &mut self,
+    //     id: I,
+    // ) -> Option<&mut richtext_state::RichtextState> {
+    //     let id: ContainerIdRaw = id.into();
+    //     let cid;
+    //     let idx = match id {
+    //         ContainerIdRaw::Root { name } => {
+    //             cid = crate::container::ContainerID::Root {
+    //                 name,
+    //                 container_type: crate::ContainerType::Text,
+    //             };
+    //             Some(self.arena.register_container(&cid))
+    //         }
+    //         ContainerIdRaw::Normal { id: _ } => {
+    //             cid = id.with_type(crate::ContainerType::Text);
+    //             self.arena.id_to_idx(&cid)
+    //         }
+    //     };
 
-        let idx = idx.unwrap();
-        self.states
-            .entry(idx)
-            .or_insert_with(|| State::new_richtext(idx, self.config.text_style_config.clone()))
-            .as_richtext_state_mut()
-            .map(|x| &mut **x)
-    }
+    //     let idx = idx.unwrap();
+    //     self.states
+    //         .entry(idx)
+    //         .or_insert_with(|| State::new_richtext(idx, self.config.text_style_config.clone()))
+    //         .as_richtext_state_mut()
+    //         .map(|x| &mut **x)
+    // }
 
     #[inline(always)]
     #[allow(unused)]
@@ -912,54 +915,53 @@ impl DocState {
     }
 
     pub fn get_container_deep_value(&mut self, container: ContainerIdx) -> LoroValue {
-        let Some(state) = self.states.get_mut(&container) else {
-            return container.get_type().default_value();
-        };
-        let value = state.get_value();
-        match value {
-            LoroValue::Container(_) => unreachable!(),
-            LoroValue::List(mut list) => {
-                if container.get_type() == ContainerType::Tree {
-                    // Each tree node has an associated map container to represent
-                    // the metadata of this node. When the user get the deep value,
-                    // we need to add a field named `meta` to the tree node,
-                    // whose value is deep value of map container.
-                    get_meta_value(Arc::make_mut(&mut list), self);
-                } else {
-                    if list.iter().all(|x| !x.is_container()) {
-                        return LoroValue::List(list);
-                    }
+        return container.get_type().default_value();
+        // let Some(state) = self.states.get_mut(&container) else {};
+        // let value = state.get_value();
+        // match value {
+        //     LoroValue::Container(_) => unreachable!(),
+        //     LoroValue::List(mut list) => {
+        //         if container.get_type() == ContainerType::Tree {
+        //             // Each tree node has an associated map container to represent
+        //             // the metadata of this node. When the user get the deep value,
+        //             // we need to add a field named `meta` to the tree node,
+        //             // whose value is deep value of map container.
+        //             get_meta_value(Arc::make_mut(&mut list), self);
+        //         } else {
+        //             if list.iter().all(|x| !x.is_container()) {
+        //                 return LoroValue::List(list);
+        //             }
 
-                    let list_mut = Arc::make_mut(&mut list);
-                    for item in list_mut.iter_mut() {
-                        if item.is_container() {
-                            let container = item.as_container().unwrap();
-                            let container_idx = self.arena.register_container(container);
-                            let value = self.get_container_deep_value(container_idx);
-                            *item = value;
-                        }
-                    }
-                }
-                LoroValue::List(list)
-            }
-            LoroValue::Map(mut map) => {
-                if map.iter().all(|x| !x.1.is_container()) {
-                    return LoroValue::Map(map);
-                }
+        //             let list_mut = Arc::make_mut(&mut list);
+        //             for item in list_mut.iter_mut() {
+        //                 if item.is_container() {
+        //                     let container = item.as_container().unwrap();
+        //                     let container_idx = self.arena.register_container(container);
+        //                     let value = self.get_container_deep_value(container_idx);
+        //                     *item = value;
+        //                 }
+        //             }
+        //         }
+        //         LoroValue::List(list)
+        //     }
+        //     LoroValue::Map(mut map) => {
+        //         if map.iter().all(|x| !x.1.is_container()) {
+        //             return LoroValue::Map(map);
+        //         }
 
-                let map_mut = Arc::make_mut(&mut map);
-                for (_key, value) in map_mut.iter_mut() {
-                    if value.is_container() {
-                        let container = value.as_container().unwrap();
-                        let container_idx = self.arena.register_container(container);
-                        let new_value = self.get_container_deep_value(container_idx);
-                        *value = new_value;
-                    }
-                }
-                LoroValue::Map(map)
-            }
-            _ => value,
-        }
+        //         let map_mut = Arc::make_mut(&mut map);
+        //         for (_key, value) in map_mut.iter_mut() {
+        //             if value.is_container() {
+        //                 let container = value.as_container().unwrap();
+        //                 let container_idx = self.arena.register_container(container);
+        //                 let new_value = self.get_container_deep_value(container_idx);
+        //                 *value = new_value;
+        //             }
+        //         }
+        //         LoroValue::Map(map)
+        //     }
+        //     _ => value,
+        // }
     }
 
     // Because we need to calculate path based on [DocState], so we cannot extract
@@ -1102,7 +1104,7 @@ impl DocState {
         let f = |state: &mut State| {
             let id = arena.idx_to_id(state.container_idx()).unwrap();
             let value = match state {
-                State::RichtextState(s) => s.get_richtext_value(),
+                // State::RichtextState(s) => s.get_richtext_value(),
                 _ => state.get_value(),
             };
             (id, (state.container_idx(), value))
@@ -1164,13 +1166,13 @@ impl DocState {
 
     pub fn create_state(&self, idx: ContainerIdx) -> State {
         match idx.get_type() {
-            ContainerType::Map => State::MapState(Box::new(MapState::new(idx))),
-            ContainerType::List => State::ListState(Box::new(ListState::new(idx))),
-            ContainerType::Text => State::RichtextState(Box::new(RichtextState::new(
-                idx,
-                self.config.text_style_config.clone(),
-            ))),
-            ContainerType::Tree => State::TreeState(Box::new(TreeState::new(idx))),
+            // ContainerType::Map => State::MapState(Box::new(MapState::new(idx))),
+            // ContainerType::List => State::ListState(Box::new(ListState::new(idx))),
+            // ContainerType::Text => State::RichtextState(Box::new(RichtextState::new(
+            //     idx,
+            //     self.config.text_style_config.clone(),
+            // ))),
+            // ContainerType::Tree => State::TreeState(Box::new(TreeState::new(idx))),
             ContainerType::Unknown(_) => unreachable!(),
         }
     }
@@ -1184,9 +1186,10 @@ impl DocState {
         let state = self.states.get_mut(&idx)?;
         if let Some(id) = pos.id {
             match state {
-                State::ListState(s) => s.get_index_of_id(id),
-                State::RichtextState(s) => s.get_event_index_of_id(id),
-                State::MapState(_) | State::TreeState(_) | State::UnknownState(_) => {
+                // State::ListState(s) => s.get_index_of_id(id),
+                // State::RichtextState(s) => s.get_event_index_of_id(id),
+                // State::MapState(_) | State::TreeState(_) |
+                State::UnknownState(_) => {
                     unreachable!()
                 }
             }
@@ -1196,9 +1199,10 @@ impl DocState {
             }
 
             match state {
-                State::ListState(s) => Some(s.len()),
-                State::RichtextState(s) => Some(s.len_event()),
-                State::MapState(_) | State::TreeState(_) | State::UnknownState(_) => {
+                // State::ListState(s) => Some(s.len()),
+                // State::RichtextState(s) => Some(s.len_event()),
+                // State::MapState(_) | State::TreeState(_) |
+                State::UnknownState(_) => {
                     unreachable!()
                 }
             }
@@ -1219,52 +1223,52 @@ impl DocState {
             let cid = self.arena.idx_to_id(state_idx)?;
             return Some(LoroValue::Container(cid));
         }
+        unreachable!();
+        // for index in path[..path.len() - 1].iter().skip(1) {
+        //     let parent_state = self.states.get(&state_idx)?;
+        //     match parent_state {
+        //         // State::ListState(l) => {
+        //         //     let Some(LoroValue::Container(c)) = l.get(*index.as_seq()?) else {
+        //         //         return None;
+        //         //     };
+        //         //     state_idx = self.arena.register_container(c);
+        //         // }
+        //         // State::MapState(m) => {
+        //         //     let Some(LoroValue::Container(c)) = m.get(index.as_key()?) else {
+        //         //         return None;
+        //         //     };
+        //         //     state_idx = self.arena.register_container(c);
+        //         // }
+        //         // State::RichtextState(_) => return None,
+        //         // State::TreeState(_) => {
+        //         //     let id = index.as_node()?;
+        //         //     let cid = id.associated_meta_container();
+        //         //     state_idx = self.arena.register_container(&cid);
+        //         // }
+        //         State::UnknownState(_) => unreachable!(),
+        //     }
+        // }
 
-        for index in path[..path.len() - 1].iter().skip(1) {
-            let parent_state = self.states.get(&state_idx)?;
-            match parent_state {
-                State::ListState(l) => {
-                    let Some(LoroValue::Container(c)) = l.get(*index.as_seq()?) else {
-                        return None;
-                    };
-                    state_idx = self.arena.register_container(c);
-                }
-                State::MapState(m) => {
-                    let Some(LoroValue::Container(c)) = m.get(index.as_key()?) else {
-                        return None;
-                    };
-                    state_idx = self.arena.register_container(c);
-                }
-                State::RichtextState(_) => return None,
-                State::TreeState(_) => {
-                    let id = index.as_node()?;
-                    let cid = id.associated_meta_container();
-                    state_idx = self.arena.register_container(&cid);
-                }
-                State::UnknownState(_) => unreachable!(),
-            }
-        }
+        // let parent_state = self.states.get_mut(&state_idx)?;
+        // let index = path.last().unwrap();
+        // let value: LoroValue = match parent_state {
+        //     // State::ListState(l) => l.get(*index.as_seq()?).cloned()?,
+        //     // State::MapState(m) => m.get(index.as_key()?).cloned()?,
+        //     // State::RichtextState(s) => {
+        //     //     let s = s.to_string_mut();
+        //     //     s.chars()
+        //     //         .nth(*index.as_seq()?)
+        //     //         .map(|c| c.to_string().into())?
+        //     // }
+        //     // State::TreeState(_) => {
+        //     //     let id = index.as_node()?;
+        //     //     let cid = id.associated_meta_container();
+        //     //     cid.into()
+        //     // }
+        //     State::UnknownState(_) => unreachable!(),
+        // };
 
-        let parent_state = self.states.get_mut(&state_idx)?;
-        let index = path.last().unwrap();
-        let value: LoroValue = match parent_state {
-            State::ListState(l) => l.get(*index.as_seq()?).cloned()?,
-            State::MapState(m) => m.get(index.as_key()?).cloned()?,
-            State::RichtextState(s) => {
-                let s = s.to_string_mut();
-                s.chars()
-                    .nth(*index.as_seq()?)
-                    .map(|c| c.to_string().into())?
-            }
-            State::TreeState(_) => {
-                let id = index.as_node()?;
-                let cid = id.associated_meta_container();
-                cid.into()
-            }
-            State::UnknownState(_) => unreachable!(),
-        };
-
-        Some(value)
+        // Some(value)
     }
 }
 
@@ -1299,63 +1303,64 @@ impl SubContainerDiffPatch {
         states: &mut FxHashMap<ContainerIdx, State>,
         idx2state: &mut FxHashMap<ContainerIdx, Diff>,
     ) {
-        match state_diff {
-            Diff::List(list) => {
-                for delta in list.iter() {
-                    if delta.is_insert() {
-                        for v in delta.as_insert().unwrap().0.iter() {
-                            if matches!(v, ValueOrHandler::Handler(_)) {
-                                let idx = v.as_handler().unwrap().container_idx();
-                                if self.all_idx.contains(&idx) {
-                                    // There is one in subsequent elements that require applying the diff
-                                    self.mark_bring_back.insert(idx);
-                                } else if let Some(state) = states.get_mut(&idx) {
-                                    // only bring back
-                                    // If the state is not empty, add this to queue and check
-                                    // whether there are sub-containers created by it recursively
-                                    // and finally cache the state
-                                    let diff =
-                                        state.to_diff(&self.arena, &self.txn, &self.weak_state);
-                                    if !diff.is_empty() {
-                                        self.diff_queue.push(InternalContainerDiff {
-                                            container: OpContainer::Idx(idx),
-                                            bring_back: true,
-                                            is_container_deleted: false,
-                                            diff: None,
-                                        });
-                                        self.bring_back_sub_container(&diff, states, idx2state);
-                                        idx2state.insert(idx, diff);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Diff::Map(map) => {
-                for (_, v) in map.updated.iter() {
-                    if let Some(ValueOrHandler::Handler(handler)) = &v.value {
-                        let idx = handler.container_idx();
-                        if self.all_idx.contains(&idx) {
-                            self.mark_bring_back.insert(idx);
-                        } else if let Some(state) = states.get_mut(&idx) {
-                            let diff = state.to_diff(&self.arena, &self.txn, &self.weak_state);
-                            if !diff.is_empty() {
-                                self.diff_queue.push(InternalContainerDiff {
-                                    container: OpContainer::Idx(idx),
-                                    bring_back: true,
-                                    is_container_deleted: false,
-                                    diff: None,
-                                });
-                                self.bring_back_sub_container(&diff, states, idx2state);
-                                idx2state.insert(idx, diff);
-                            }
-                        }
-                    }
-                }
-            }
-            _ => {}
-        };
+        return;
+        // match state_diff {
+        //     Diff::List(list) => {
+        //         for delta in list.iter() {
+        //             if delta.is_insert() {
+        //                 for v in delta.as_insert().unwrap().0.iter() {
+        //                     if matches!(v, ValueOrHandler::Handler(_)) {
+        //                         let idx = v.as_handler().unwrap().container_idx();
+        //                         if self.all_idx.contains(&idx) {
+        //                             // There is one in subsequent elements that require applying the diff
+        //                             self.mark_bring_back.insert(idx);
+        //                         } else if let Some(state) = states.get_mut(&idx) {
+        //                             // only bring back
+        //                             // If the state is not empty, add this to queue and check
+        //                             // whether there are sub-containers created by it recursively
+        //                             // and finally cache the state
+        //                             let diff =
+        //                                 state.to_diff(&self.arena, &self.txn, &self.weak_state);
+        //                             if !diff.is_empty() {
+        //                                 self.diff_queue.push(InternalContainerDiff {
+        //                                     container: OpContainer::Idx(idx),
+        //                                     bring_back: true,
+        //                                     is_container_deleted: false,
+        //                                     diff: None,
+        //                                 });
+        //                                 self.bring_back_sub_container(&diff, states, idx2state);
+        //                                 idx2state.insert(idx, diff);
+        //                             }
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     Diff::Map(map) => {
+        //         for (_, v) in map.updated.iter() {
+        //             if let Some(ValueOrHandler::Handler(handler)) = &v.value {
+        //                 let idx = handler.container_idx();
+        //                 if self.all_idx.contains(&idx) {
+        //                     self.mark_bring_back.insert(idx);
+        //                 } else if let Some(state) = states.get_mut(&idx) {
+        //                     let diff = state.to_diff(&self.arena, &self.txn, &self.weak_state);
+        //                     if !diff.is_empty() {
+        //                         self.diff_queue.push(InternalContainerDiff {
+        //                             container: OpContainer::Idx(idx),
+        //                             bring_back: true,
+        //                             is_container_deleted: false,
+        //                             diff: None,
+        //                         });
+        //                         self.bring_back_sub_container(&diff, states, idx2state);
+        //                         idx2state.insert(idx, diff);
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     _ => {}
+        // };
     }
 }
 
@@ -1376,14 +1381,14 @@ impl EventRecorder {
     }
 }
 
-#[test]
-fn test_size() {
-    println!("Size of State = {}", std::mem::size_of::<State>());
-    println!("Size of MapState = {}", std::mem::size_of::<MapState>());
-    println!("Size of ListState = {}", std::mem::size_of::<ListState>());
-    println!(
-        "Size of TextState = {}",
-        std::mem::size_of::<RichtextState>()
-    );
-    println!("Size of TreeState = {}", std::mem::size_of::<TreeState>());
-}
+// #[test]
+// fn test_size() {
+//     println!("Size of State = {}", std::mem::size_of::<State>());
+//     println!("Size of MapState = {}", std::mem::size_of::<MapState>());
+//     println!("Size of ListState = {}", std::mem::size_of::<ListState>());
+//     println!(
+//         "Size of TextState = {}",
+//         std::mem::size_of::<RichtextState>()
+//     );
+//     println!("Size of TreeState = {}", std::mem::size_of::<TreeState>());
+// }

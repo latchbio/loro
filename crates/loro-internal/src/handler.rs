@@ -8,9 +8,7 @@ use crate::{
         tree::tree_op::TreeOp,
     },
     cursor::{Cursor, Side},
-    delta::{DeltaItem, StyleMeta, TreeDiffItem, TreeExternalDiff},
-    op::ListSlice,
-    state::{ContainerState, State, TreeParentId},
+    state::{ContainerState, State},
     txn::EventHint,
     utils::{string_slice::StringSlice, utf16::count_utf16_len},
 };

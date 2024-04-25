@@ -77,31 +77,3 @@ default = []
 wasm = ["wasm-bindgen", "js-sys", "serde-wasm-bindgen", "loro-common/wasm"]
 # whether to use list slice instead of raw str in text container
 test_utils = ["rand", "arbitrary", "tabled"]
-
-[[bench]]
-name = "text_r"
-harness = false
-
-[[bench]]
-name = "list"
-harness = false
-
-[[bench]]
-name = "encode"
-harness = false
-
-[[bench]]
-name = "pending"
-harness = false
-
-[[bench]]
-name = "event"
-harness = false
-
-[[bench]]
-name = "map"
-harness = false
-
-[[bench]]
-name = "tree"
-harness = false

@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::{
-    container::richtext::richtext_state::RichtextStateChunk,
-    delta::{Delta, MapDelta, ResolvedMapDelta, StyleMeta, TreeDelta, TreeDiff},
-    handler::ValueOrHandler,
-    op::{OpContainer, OpWithId, SliceRanges},
-    utils::string_slice::StringSlice,
+    // container::richtext::richtext_state::RichtextStateChunk,
+    // delta::{Delta, MapDelta, ResolvedMapDelta, StyleMeta, TreeDelta, TreeDiff},
+    // handler::ValueOrHandler,
+    op::{OpContainer, OpWithId},
+    // utils::string_slice::StringSlice,
     InternalString,
 };
 
@@ -204,11 +204,11 @@ impl DiffVariant {
 #[non_exhaustive]
 #[derive(Clone, Debug, EnumAsInner)]
 pub(crate) enum InternalDiff {
-    ListRaw(Delta<SliceRanges>),
-    /// This always uses entity indexes.
-    RichtextRaw(Delta<RichtextStateChunk>),
-    Map(MapDelta),
-    Tree(TreeDelta),
+    // ListRaw(Delta<SliceRanges>),
+    // /// This always uses entity indexes.
+    // RichtextRaw(Delta<RichtextStateChunk>),
+    // Map(MapDelta),
+    // Tree(TreeDelta),
     Unknown(Vec<OpWithId>),
 }
 
@@ -230,14 +230,15 @@ impl From<InternalDiff> for DiffVariant {
 #[non_exhaustive]
 #[derive(Clone, Debug, EnumAsInner)]
 pub enum Diff {
-    List(Delta<Vec<ValueOrHandler>>),
+    // List(Delta<Vec<ValueOrHandler>>),
     // TODO: refactor, doesn't make much sense to use `StyleMeta` here, because sometime style
     // don't have peer and lamport info
     /// - When feature `wasm` is enabled, it should use utf16 indexes.
     /// - When feature `wasm` is disabled, it should use unicode indexes.
-    Text(Delta<StringSlice, StyleMeta>),
-    Map(ResolvedMapDelta),
-    Tree(TreeDiff),
+    // Text(Delta<StringSlice, StyleMeta>),
+    // Map(ResolvedMapDelta),
+    // Tree(TreeDiff),
+    Unknown(()),
 }
 
 impl From<Diff> for DiffVariant {
@@ -249,10 +250,10 @@ impl From<Diff> for DiffVariant {
 impl InternalDiff {
     pub(crate) fn is_empty(&self) -> bool {
         match self {
-            InternalDiff::ListRaw(s) => s.is_empty(),
-            InternalDiff::RichtextRaw(t) => t.is_empty(),
-            InternalDiff::Map(m) => m.updated.is_empty(),
-            InternalDiff::Tree(t) => t.is_empty(),
+            // InternalDiff::ListRaw(s) => s.is_empty(),
+            // InternalDiff::RichtextRaw(t) => t.is_empty(),
+            // InternalDiff::Map(m) => m.updated.is_empty(),
+            // InternalDiff::Tree(t) => t.is_empty(),
             InternalDiff::Unknown(v) => v.is_empty(),
         }
     }
@@ -260,14 +261,14 @@ impl InternalDiff {
     pub(crate) fn compose(self, diff: InternalDiff) -> Result<Self, Self> {
         // PERF: avoid clone
         match (self, diff) {
-            (InternalDiff::ListRaw(a), InternalDiff::ListRaw(b)) => {
-                Ok(InternalDiff::ListRaw(a.compose(b)))
-            }
-            (InternalDiff::RichtextRaw(a), InternalDiff::RichtextRaw(b)) => {
-                Ok(InternalDiff::RichtextRaw(a.compose(b)))
-            }
-            (InternalDiff::Map(a), InternalDiff::Map(b)) => Ok(InternalDiff::Map(a.compose(b))),
-            (InternalDiff::Tree(a), InternalDiff::Tree(b)) => Ok(InternalDiff::Tree(a.compose(b))),
+            // (InternalDiff::ListRaw(a), InternalDiff::ListRaw(b)) => {
+            //     Ok(InternalDiff::ListRaw(a.compose(b)))
+            // }
+            // (InternalDiff::RichtextRaw(a), InternalDiff::RichtextRaw(b)) => {
+            //     Ok(InternalDiff::RichtextRaw(a.compose(b)))
+            // }
+            // (InternalDiff::Map(a), InternalDiff::Map(b)) => Ok(InternalDiff::Map(a.compose(b))),
+            // (InternalDiff::Tree(a), InternalDiff::Tree(b)) => Ok(InternalDiff::Tree(a.compose(b))),
             (a, _) => Err(a),
         }
     }
@@ -277,39 +278,41 @@ impl Diff {
     pub(crate) fn compose(self, diff: Diff) -> Result<Self, Self> {
         // PERF: avoid clone
         match (self, diff) {
-            (Diff::List(a), Diff::List(b)) => Ok(Diff::List(a.compose(b))),
-            (Diff::Text(a), Diff::Text(b)) => Ok(Diff::Text(a.compose(b))),
-            (Diff::Map(a), Diff::Map(b)) => Ok(Diff::Map(a.compose(b))),
+            // (Diff::List(a), Diff::List(b)) => Ok(Diff::List(a.compose(b))),
+            // (Diff::Text(a), Diff::Text(b)) => Ok(Diff::Text(a.compose(b))),
+            // (Diff::Map(a), Diff::Map(b)) => Ok(Diff::Map(a.compose(b))),
 
-            (Diff::Tree(a), Diff::Tree(b)) => Ok(Diff::Tree(a.compose(b))),
+            // (Diff::Tree(a), Diff::Tree(b)) => Ok(Diff::Tree(a.compose(b))),
             (a, _) => Err(a),
         }
     }
 
     pub(crate) fn is_empty(&self) -> bool {
         match self {
-            Diff::List(s) => s.is_empty(),
-            Diff::Text(t) => t.is_empty(),
-            Diff::Map(m) => m.updated.is_empty(),
-            Diff::Tree(t) => t.diff.is_empty(),
+            // Diff::List(s) => s.is_empty(),
+            // Diff::Text(t) => t.is_empty(),
+            // Diff::Map(m) => m.updated.is_empty(),
+            // Diff::Tree(t) => t.diff.is_empty(),
+            Diff::Unknown(_) => false,
         }
     }
 
     pub(crate) fn concat(self, diff: Diff) -> Diff {
-        match (self, diff) {
-            (Diff::List(a), Diff::List(b)) => Diff::List(a.compose(b)),
-            (Diff::Text(a), Diff::Text(b)) => Diff::Text(a.compose(b)),
-            (Diff::Map(a), Diff::Map(b)) => {
-                let mut a = a;
-                for (k, v) in b.updated {
-                    a = a.with_entry(k, v);
-                }
-                Diff::Map(a)
-            }
+        return diff;
+        // match (self, diff) {
+        //     // (Diff::List(a), Diff::List(b)) => Diff::List(a.compose(b)),
+        //     // (Diff::Text(a), Diff::Text(b)) => Diff::Text(a.compose(b)),
+        //     // (Diff::Map(a), Diff::Map(b)) => {
+        //     //     let mut a = a;
+        //     //     for (k, v) in b.updated {
+        //     //         a = a.with_entry(k, v);
+        //     //     }
+        //     //     Diff::Map(a)
+        //     // }
 
-            (Diff::Tree(a), Diff::Tree(b)) => Diff::Tree(a.extend(b.diff)),
-            _ => unreachable!(),
-        }
+        //     // (Diff::Tree(a), Diff::Tree(b)) => Diff::Tree(a.extend(b.diff)),
+        //     _ => unreachable!(),
+        // }
     }
 }
 
@@ -321,27 +324,27 @@ pub fn path_to_str(path: &[Index]) -> String {
     path.iter().map(|x| x.to_string()).join("/")
 }
 
-#[cfg(test)]
-mod test {
-    use std::sync::Arc;
+// #[cfg(test)]
+// mod test {
+//     use std::sync::Arc;
 
-    use itertools::Itertools;
-    use loro_common::LoroValue;
+//     use itertools::Itertools;
+//     use loro_common::LoroValue;
 
-    use crate::{ApplyDiff, LoroDoc};
+//     use crate::{ApplyDiff, LoroDoc};
 
-    #[test]
-    fn test_text_event() {
-        let loro = LoroDoc::new();
-        loro.subscribe_root(Arc::new(|event| {
-            let mut value = LoroValue::String(Default::default());
-            value.apply_diff(&event.events.iter().map(|x| x.diff.clone()).collect_vec());
-            assert_eq!(value, "h223ello".into());
-        }));
-        let mut txn = loro.txn().unwrap();
-        let text = loro.get_text("id");
-        text.insert_with_txn(&mut txn, 0, "hello").unwrap();
-        text.insert_with_txn(&mut txn, 1, "223").unwrap();
-        txn.commit().unwrap();
-    }
-}
+//     #[test]
+//     fn test_text_event() {
+//         let loro = LoroDoc::new();
+//         loro.subscribe_root(Arc::new(|event| {
+//             let mut value = LoroValue::String(Default::default());
+//             value.apply_diff(&event.events.iter().map(|x| x.diff.clone()).collect_vec());
+//             assert_eq!(value, "h223ello".into());
+//         }));
+//         let mut txn = loro.txn().unwrap();
+//         let text = loro.get_text("id");
+//         text.insert_with_txn(&mut txn, 0, "hello").unwrap();
+//         text.insert_with_txn(&mut txn, 1, "223").unwrap();
+//         txn.commit().unwrap();
+//     }
+// }

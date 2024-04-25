@@ -1,4 +1,4 @@
-mod str_arena;
+// mod str_arena;
 
 use std::{
     num::NonZeroU16,
@@ -14,16 +14,16 @@ use crate::{
     change::Lamport,
     container::{
         idx::ContainerIdx,
-        list::list_op::{InnerListOp, ListOp},
-        map::MapSet,
+        // list::list_op::{InnerListOp, ListOp},
+        // map::MapSet,
         ContainerID,
     },
     id::Counter,
-    op::{InnerContent, ListSlice, Op, RawOp, RawOpContent, SliceRange},
+    op::{InnerContent, Op, RawOp, RawOpContent},
     LoroValue,
 };
 
-use self::str_arena::StrArena;
+// use self::str_arena::StrArena;
 
 #[derive(Default, Debug)]
 struct InnerSharedArena {
@@ -37,7 +37,7 @@ struct InnerSharedArena {
     parents: Mutex<FxHashMap<ContainerIdx, Option<ContainerIdx>>>,
     values: Mutex<Vec<LoroValue>>,
     root_c_idx: Mutex<Vec<ContainerIdx>>,
-    str: Mutex<StrArena>,
+    str: Mutex<()>,
 }
 
 /// This is shared between [OpLog] and [AppState].
@@ -102,27 +102,27 @@ impl SharedArena {
         f(&lock)
     }
 
-    pub fn alloc_str(&self, str: &str) -> StrAllocResult {
-        let mut text_lock = self.inner.str.lock().unwrap();
-        _alloc_str(&mut text_lock, str)
-    }
+    // pub fn alloc_str(&self, str: &str) -> StrAllocResult {
+    //     let mut text_lock = self.inner.str.lock().unwrap();
+    //     _alloc_str(&mut text_lock, str)
+    // }
 
-    /// return slice and unicode index
-    pub fn alloc_str_with_slice(&self, str: &str) -> (BytesSlice, StrAllocResult) {
-        let mut text_lock = self.inner.str.lock().unwrap();
-        _alloc_str_with_slice(&mut text_lock, str)
-    }
+    // /// return slice and unicode index
+    // pub fn alloc_str_with_slice(&self, str: &str) -> (BytesSlice, StrAllocResult) {
+    //     let mut text_lock = self.inner.str.lock().unwrap();
+    //     _alloc_str_with_slice(&mut text_lock, str)
+    // }
 
     /// alloc str without extra info
-    pub fn alloc_str_fast(&self, bytes: &[u8]) {
-        let mut text_lock = self.inner.str.lock().unwrap();
-        text_lock.alloc(std::str::from_utf8(bytes).unwrap());
-    }
+    // pub fn alloc_str_fast(&self, bytes: &[u8]) {
+    //     let mut text_lock = self.inner.str.lock().unwrap();
+    //     text_lock.alloc(std::str::from_utf8(bytes).unwrap());
+    // }
 
-    #[inline]
-    pub fn utf16_len(&self) -> usize {
-        self.inner.str.lock().unwrap().len_utf16()
-    }
+    // #[inline]
+    // pub fn utf16_len(&self) -> usize {
+    //     self.inner.str.lock().unwrap().len_utf16()
+    // }
 
     #[inline]
     pub fn alloc_value(&self, value: LoroValue) -> usize {
@@ -192,29 +192,29 @@ impl SharedArena {
         }
     }
 
-    #[inline]
-    pub fn slice_by_unicode(&self, range: impl RangeBounds<usize>) -> BytesSlice {
-        self.inner.str.lock().unwrap().slice_by_unicode(range)
-    }
+    // #[inline]
+    // pub fn slice_by_unicode(&self, range: impl RangeBounds<usize>) -> BytesSlice {
+    //     self.inner.str.lock().unwrap().slice_by_unicode(range)
+    // }
 
-    #[inline]
-    pub fn slice_by_utf8(&self, range: impl RangeBounds<usize>) -> BytesSlice {
-        self.inner.str.lock().unwrap().slice_bytes(range)
-    }
+    // #[inline]
+    // pub fn slice_by_utf8(&self, range: impl RangeBounds<usize>) -> BytesSlice {
+    //     self.inner.str.lock().unwrap().slice_bytes(range)
+    // }
 
-    #[inline]
-    pub fn slice_str_by_unicode_range(&self, range: Range<usize>) -> String {
-        let mut s = self.inner.str.lock().unwrap();
-        let s: &mut StrArena = &mut s;
-        let mut ans = String::with_capacity(range.len());
-        ans.push_str(s.slice_str_by_unicode(range));
-        ans
-    }
+    // #[inline]
+    // pub fn slice_str_by_unicode_range(&self, range: Range<usize>) -> String {
+    //     let mut s = self.inner.str.lock().unwrap();
+    //     let s: &mut StrArena = &mut s;
+    //     let mut ans = String::with_capacity(range.len());
+    //     ans.push_str(s.slice_str_by_unicode(range));
+    //     ans
+    // }
 
-    #[inline]
-    pub fn with_text_slice(&self, range: Range<usize>, mut f: impl FnMut(&str)) {
-        f(self.inner.str.lock().unwrap().slice_str_by_unicode(range))
-    }
+    // #[inline]
+    // pub fn with_text_slice(&self, range: Range<usize>, mut f: impl FnMut(&str)) {
+    //     f(self.inner.str.lock().unwrap().slice_str_by_unicode(range))
+    // }
 
     #[inline]
     pub fn get_value(&self, idx: usize) -> Option<LoroValue> {
@@ -239,12 +239,12 @@ impl SharedArena {
     }
 
     pub fn can_import_snapshot(&self) -> bool {
-        self.inner.str.lock().unwrap().is_empty() && self.inner.values.lock().unwrap().is_empty()
+        self.inner.values.lock().unwrap().is_empty()
     }
 
     fn inner_convert_op(
         &self,
-        content: RawOpContent<'_>,
+        content: RawOpContent,
         _peer: PeerID,
         counter: i32,
         _lamport: Lamport,
@@ -252,71 +252,71 @@ impl SharedArena {
     ) -> Op {
         let container = container.into();
         match content {
-            crate::op::RawOpContent::Map(MapSet { key, value }) => Op {
-                counter,
-                container,
-                content: crate::op::InnerContent::Map(MapSet { key, value }),
-            },
-            crate::op::RawOpContent::List(list) => match list {
-                ListOp::Insert { slice, pos } => match slice {
-                    ListSlice::RawData(values) => {
-                        let range = self.alloc_values(values.iter().cloned());
-                        Op {
-                            counter,
-                            container,
-                            content: crate::op::InnerContent::List(InnerListOp::Insert {
-                                slice: SliceRange::from(range.start as u32..range.end as u32),
-                                pos,
-                            }),
-                        }
-                    }
-                    ListSlice::RawStr { str, unicode_len } => {
-                        let (slice, info) = self.alloc_str_with_slice(&str);
-                        Op {
-                            counter,
-                            container,
-                            content: crate::op::InnerContent::List(InnerListOp::InsertText {
-                                slice,
-                                unicode_start: info.start as u32,
-                                unicode_len: unicode_len as u32,
-                                pos: pos as u32,
-                            }),
-                        }
-                    }
-                },
-                ListOp::Delete(span) => Op {
-                    counter,
-                    container,
-                    content: crate::op::InnerContent::List(InnerListOp::Delete(span)),
-                },
-                ListOp::StyleStart {
-                    start,
-                    end,
-                    info,
-                    key,
-                    value,
-                } => Op {
-                    counter,
-                    container,
-                    content: InnerContent::List(InnerListOp::StyleStart {
-                        start,
-                        end,
-                        key,
-                        info,
-                        value,
-                    }),
-                },
-                ListOp::StyleEnd => Op {
-                    counter,
-                    container,
-                    content: InnerContent::List(InnerListOp::StyleEnd),
-                },
-            },
-            crate::op::RawOpContent::Tree(tree) => Op {
-                counter,
-                container,
-                content: crate::op::InnerContent::Tree(tree),
-            },
+            // crate::op::RawOpContent::Map(MapSet { key, value }) => Op {
+            //     counter,
+            //     container,
+            //     content: crate::op::InnerContent::Map(MapSet { key, value }),
+            // },
+            // crate::op::RawOpContent::List(list) => match list {
+            //     ListOp::Insert { slice, pos } => match slice {
+            //         ListSlice::RawData(values) => {
+            //             let range = self.alloc_values(values.iter().cloned());
+            //             Op {
+            //                 counter,
+            //                 container,
+            //                 content: crate::op::InnerContent::List(InnerListOp::Insert {
+            //                     slice: SliceRange::from(range.start as u32..range.end as u32),
+            //                     pos,
+            //                 }),
+            //             }
+            //         }
+            //         ListSlice::RawStr { str, unicode_len } => {
+            //             let (slice, info) = self.alloc_str_with_slice(&str);
+            //             Op {
+            //                 counter,
+            //                 container,
+            //                 content: crate::op::InnerContent::List(InnerListOp::InsertText {
+            //                     slice,
+            //                     unicode_start: info.start as u32,
+            //                     unicode_len: unicode_len as u32,
+            //                     pos: pos as u32,
+            //                 }),
+            //             }
+            //         }
+            //     },
+            //     ListOp::Delete(span) => Op {
+            //         counter,
+            //         container,
+            //         content: crate::op::InnerContent::List(InnerListOp::Delete(span)),
+            //     },
+            //     ListOp::StyleStart {
+            //         start,
+            //         end,
+            //         info,
+            //         key,
+            //         value,
+            //     } => Op {
+            //         counter,
+            //         container,
+            //         content: InnerContent::List(InnerListOp::StyleStart {
+            //             start,
+            //             end,
+            //             key,
+            //             info,
+            //             value,
+            //         }),
+            //     },
+            //     ListOp::StyleEnd => Op {
+            //         counter,
+            //         container,
+            //         content: InnerContent::List(InnerListOp::StyleEnd),
+            //     },
+            // },
+            // crate::op::RawOpContent::Tree(tree) => Op {
+            //     counter,
+            //     container,
+            //     content: crate::op::InnerContent::Tree(tree),
+            // },
             crate::op::RawOpContent::Future(f) => match f {
                 crate::op::FutureRawOpContent::Unknown { op_len, value } => Op {
                     counter,
@@ -390,14 +390,14 @@ impl SharedArena {
     }
 }
 
-fn _alloc_str_with_slice(
-    text_lock: &mut MutexGuard<'_, StrArena>,
-    str: &str,
-) -> (BytesSlice, StrAllocResult) {
-    let start = text_lock.len_bytes();
-    let ans = _alloc_str(text_lock, str);
-    (text_lock.slice_bytes(start..), ans)
-}
+// fn _alloc_str_with_slice(
+//     text_lock: &mut MutexGuard<'_, StrArena>,
+//     str: &str,
+// ) -> (BytesSlice, StrAllocResult) {
+//     let start = text_lock.len_bytes();
+//     let ans = _alloc_str(text_lock, str);
+//     (text_lock.slice_bytes(start..), ans)
+// }
 
 fn _alloc_values(
     values_lock: &mut MutexGuard<'_, Vec<LoroValue>>,
@@ -417,20 +417,20 @@ fn _alloc_value(values_lock: &mut MutexGuard<'_, Vec<LoroValue>>, value: LoroVal
     values_lock.len() - 1
 }
 
-fn _alloc_str(text_lock: &mut MutexGuard<'_, StrArena>, str: &str) -> StrAllocResult {
-    let start = text_lock.len_unicode();
-    text_lock.alloc(str);
-    StrAllocResult {
-        start,
-        end: text_lock.len_unicode(),
-    }
-}
+// fn _alloc_str(text_lock: &mut MutexGuard<'_, StrArena>, str: &str) -> StrAllocResult {
+//     let start = text_lock.len_unicode();
+//     text_lock.alloc(str);
+//     StrAllocResult {
+//         start,
+//         end: text_lock.len_unicode(),
+//     }
+// }
 
-fn _slice_str(range: Range<usize>, s: &mut StrArena) -> String {
-    let mut ans = String::with_capacity(range.len());
-    ans.push_str(s.slice_str_by_unicode(range));
-    ans
-}
+// fn _slice_str(range: Range<usize>, s: &mut StrArena) -> String {
+//     let mut ans = String::with_capacity(range.len());
+//     ans.push_str(s.slice_str_by_unicode(range));
+//     ans
+// }
 
 fn get_depth(
     target: ContainerIdx,

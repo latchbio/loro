@@ -17,22 +17,22 @@ use crate::{
     arena::SharedArena,
     change::Timestamp,
     configure::Configure,
-    container::{
-        idx::ContainerIdx, list::list_op::InnerListOp, richtext::config::StyleConfigMap,
-        IntoContainerId,
-    },
+    container::{idx::ContainerIdx, IntoContainerId},
     cursor::{AbsolutePosition, CannotFindRelativePosition, Cursor, PosQueryResult},
     dag::DagUtils,
     encoding::{
         decode_snapshot, export_snapshot, parse_header_and_body, EncodeMode, ParsedHeaderAndBody,
     },
     event::{str_to_path, EventTriggerKind, Index},
-    handler::{Handler, TextHandler, TreeHandler, ValueOrHandler},
+    // handler::{Handler, TextHandler, TreeHandler, ValueOrHandler},
     id::PeerID,
     op::{InnerContent, OpContainer},
     oplog::dag::FrontiersNotIncluded,
     version::Frontiers,
-    HandlerTrait, InternalString, LoroError, VersionVector,
+    // HandlerTrait,
+    InternalString,
+    LoroError,
+    VersionVector,
 };
 
 use super::{
@@ -42,7 +42,7 @@ use super::{
     oplog::OpLog,
     state::DocState,
     txn::Transaction,
-    ListHandler, MapHandler,
+    // ListHandler, MapHandler,
 };
 
 /// `LoroApp` serves as the library's primary entry point.
@@ -126,10 +126,10 @@ impl LoroDoc {
         self.config.set_merge_interval(interval);
     }
 
-    #[inline]
-    pub fn config_text_style(&self, text_style: StyleConfigMap) {
-        *self.config.text_style_config.try_write().unwrap() = text_style;
-    }
+    // #[inline]
+    // pub fn config_text_style(&self, text_style: StyleConfigMap) {
+    //     *self.config.text_style_config.try_write().unwrap() = text_style;
+    // }
 
     /// Create a doc with auto commit enabled.
     #[inline]
@@ -563,85 +563,85 @@ impl LoroDoc {
         self.oplog.lock().unwrap().dag.frontiers_to_vv(f).unwrap()
     }
 
-    pub fn get_by_path(&self, path: &[Index]) -> Option<ValueOrHandler> {
-        let value: LoroValue = self.state.lock().unwrap().get_value_by_path(path)?;
-        if let LoroValue::Container(c) = value {
-            Some(ValueOrHandler::Handler(Handler::new_attached(
-                c.clone(),
-                self.arena.clone(),
-                self.get_global_txn(),
-                Arc::downgrade(&self.state),
-            )))
-        } else {
-            Some(ValueOrHandler::Value(value))
-        }
-    }
+    // pub fn get_by_path(&self, path: &[Index]) -> Option<ValueOrHandler> {
+    //     let value: LoroValue = self.state.lock().unwrap().get_value_by_path(path)?;
+    //     if let LoroValue::Container(c) = value {
+    //         Some(ValueOrHandler::Handler(Handler::new_attached(
+    //             c.clone(),
+    //             self.arena.clone(),
+    //             self.get_global_txn(),
+    //             Arc::downgrade(&self.state),
+    //         )))
+    //     } else {
+    //         Some(ValueOrHandler::Value(value))
+    //     }
+    // }
 
-    /// Get the handler by the string path.
-    pub fn get_by_str_path(&self, path: &str) -> Option<ValueOrHandler> {
-        let path = str_to_path(path)?;
-        self.get_by_path(&path)
-    }
+    // /// Get the handler by the string path.
+    // pub fn get_by_str_path(&self, path: &str) -> Option<ValueOrHandler> {
+    //     let path = str_to_path(path)?;
+    //     self.get_by_path(&path)
+    // }
 
-    /// id can be a str, ContainerID, or ContainerIdRaw.
-    /// if it's str it will use Root container, which will not be None
-    #[inline]
-    pub fn get_text<I: IntoContainerId>(&self, id: I) -> TextHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Text);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.get_global_txn(),
-            Arc::downgrade(&self.state),
-        )
-        .into_text()
-        .unwrap()
-    }
+    // /// id can be a str, ContainerID, or ContainerIdRaw.
+    // /// if it's str it will use Root container, which will not be None
+    // #[inline]
+    // pub fn get_text<I: IntoContainerId>(&self, id: I) -> TextHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Text);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.get_global_txn(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_text()
+    //     .unwrap()
+    // }
 
-    /// id can be a str, ContainerID, or ContainerIdRaw.
-    /// if it's str it will use Root container, which will not be None
-    #[inline]
-    pub fn get_list<I: IntoContainerId>(&self, id: I) -> ListHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::List);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.get_global_txn(),
-            Arc::downgrade(&self.state),
-        )
-        .into_list()
-        .unwrap()
-    }
+    // /// id can be a str, ContainerID, or ContainerIdRaw.
+    // /// if it's str it will use Root container, which will not be None
+    // #[inline]
+    // pub fn get_list<I: IntoContainerId>(&self, id: I) -> ListHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::List);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.get_global_txn(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_list()
+    //     .unwrap()
+    // }
 
-    /// id can be a str, ContainerID, or ContainerIdRaw.
-    /// if it's str it will use Root container, which will not be None
-    #[inline]
-    pub fn get_map<I: IntoContainerId>(&self, id: I) -> MapHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Map);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.get_global_txn(),
-            Arc::downgrade(&self.state),
-        )
-        .into_map()
-        .unwrap()
-    }
+    // /// id can be a str, ContainerID, or ContainerIdRaw.
+    // /// if it's str it will use Root container, which will not be None
+    // #[inline]
+    // pub fn get_map<I: IntoContainerId>(&self, id: I) -> MapHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Map);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.get_global_txn(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_map()
+    //     .unwrap()
+    // }
 
-    /// id can be a str, ContainerID, or ContainerIdRaw.
-    /// if it's str it will use Root container, which will not be None
-    #[inline]
-    pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
-        let id = id.into_container_id(&self.arena, ContainerType::Tree);
-        Handler::new_attached(
-            id,
-            self.arena.clone(),
-            self.get_global_txn(),
-            Arc::downgrade(&self.state),
-        )
-        .into_tree()
-        .unwrap()
-    }
+    // /// id can be a str, ContainerID, or ContainerIdRaw.
+    // /// if it's str it will use Root container, which will not be None
+    // #[inline]
+    // pub fn get_tree<I: IntoContainerId>(&self, id: I) -> TreeHandler {
+    //     let id = id.into_container_id(&self.arena, ContainerType::Tree);
+    //     Handler::new_attached(
+    //         id,
+    //         self.arena.clone(),
+    //         self.get_global_txn(),
+    //         Arc::downgrade(&self.state),
+    //     )
+    //     .into_tree()
+    //     .unwrap()
+    // }
 
     /// This is for debugging purpose. It will travel the whole oplog
     #[inline]
@@ -916,68 +916,70 @@ impl LoroDoc {
                 );
                 // TODO: remove depth info
                 let depth = self.arena.get_depth(idx);
-                let (_,diff_calc) = &mut diff_calc.get_or_create_calc(&OpContainer::Idx(idx),depth);
+                let (_, diff_calc) =
+                    &mut diff_calc.get_or_create_calc(&OpContainer::Idx(idx), depth);
                 match diff_calc {
-                    crate::diff_calc::ContainerDiffCalculator::Richtext(text) => {
-                        let c = text.get_id_latest_pos(id).unwrap();
-                        let new_pos = c.pos;
-                        let handler = self.get_text(&pos.container);
-                        let current_pos = handler.convert_entity_index_to_event_index(new_pos);
-                        Ok(PosQueryResult {
-                            update: handler.get_cursor(current_pos, c.side),
-                            current: AbsolutePosition {
-                                pos: current_pos,
-                                side: c.side,
-                            },
-                        })
-                    }
-                    crate::diff_calc::ContainerDiffCalculator::List(list) => {
-                        let c = list.get_id_latest_pos(id).unwrap();
-                        let new_pos = c.pos;
-                        let handler = self.get_list(&pos.container);
-                        Ok(PosQueryResult {
-                            update: handler.get_cursor(new_pos, c.side),
-                            current: AbsolutePosition {
-                                pos: new_pos,
-                                side: c.side,
-                            },
-                        })
-                    }
-                    crate::diff_calc::ContainerDiffCalculator::Tree(_) => unreachable!(),
-                    crate::diff_calc::ContainerDiffCalculator::Map(_) => unreachable!(),
+                    // crate::diff_calc::ContainerDiffCalculator::Richtext(text) => {
+                    //     let c = text.get_id_latest_pos(id).unwrap();
+                    //     let new_pos = c.pos;
+                    //     let handler = self.get_text(&pos.container);
+                    //     let current_pos = handler.convert_entity_index_to_event_index(new_pos);
+                    //     Ok(PosQueryResult {
+                    //         update: handler.get_cursor(current_pos, c.side),
+                    //         current: AbsolutePosition {
+                    //             pos: current_pos,
+                    //             side: c.side,
+                    //         },
+                    //     })
+                    // }
+                    // crate::diff_calc::ContainerDiffCalculator::List(list) => {
+                    //     let c = list.get_id_latest_pos(id).unwrap();
+                    //     let new_pos = c.pos;
+                    //     let handler = self.get_list(&pos.container);
+                    //     Ok(PosQueryResult {
+                    //         update: handler.get_cursor(new_pos, c.side),
+                    //         current: AbsolutePosition {
+                    //             pos: new_pos,
+                    //             side: c.side,
+                    //         },
+                    //     })
+                    // }
+                    // crate::diff_calc::ContainerDiffCalculator::Tree(_) => unreachable!(),
+                    // crate::diff_calc::ContainerDiffCalculator::Map(_) => unreachable!(),
                     crate::diff_calc::ContainerDiffCalculator::Unknown(_) => unreachable!(),
                 }
             } else {
                 match pos.container.container_type() {
-                    ContainerType::Text => {
-                        let text = self.get_text(&pos.container);
-                        Ok(PosQueryResult {
-                            update: Some(Cursor {
-                                id: None,
-                                container: text.id(),
-                                side: pos.side,
-                            }),
-                            current: AbsolutePosition {
-                                pos: text.len_event(),
-                                side: pos.side,
-                            },
-                        })
-                    }
-                    ContainerType::List => {
-                        let list = self.get_list(&pos.container);
-                        Ok(PosQueryResult {
-                            update: Some(Cursor {
-                                id: None,
-                                container: list.id(),
-                                side: pos.side,
-                            }),
-                            current: AbsolutePosition {
-                                pos: list.len(),
-                                side: pos.side,
-                            },
-                        })
-                    }
-                    ContainerType::Map | ContainerType::Tree | ContainerType::Unknown(_) => {
+                    // ContainerType::Text => {
+                    //     let text = self.get_text(&pos.container);
+                    //     Ok(PosQueryResult {
+                    //         update: Some(Cursor {
+                    //             id: None,
+                    //             container: text.id(),
+                    //             side: pos.side,
+                    //         }),
+                    //         current: AbsolutePosition {
+                    //             pos: text.len_event(),
+                    //             side: pos.side,
+                    //         },
+                    //     })
+                    // }
+                    // ContainerType::List => {
+                    //     let list = self.get_list(&pos.container);
+                    //     Ok(PosQueryResult {
+                    //         update: Some(Cursor {
+                    //             id: None,
+                    //             container: list.id(),
+                    //             side: pos.side,
+                    //         }),
+                    //         current: AbsolutePosition {
+                    //             pos: list.len(),
+                    //             side: pos.side,
+                    //         },
+                    //     })
+                    // }
+                    // ContainerType::Map | ContainerType::Tree |
+                    ContainerType::Unknown(_) => {
                         unreachable!()
                     }
                 }
@@ -994,11 +996,11 @@ fn find_last_delete_op(oplog: &OpLog, id: ID, idx: ContainerIdx) -> Option<ID> {
                 continue;
             }
 
-            if let InnerContent::List(InnerListOp::Delete(d)) = &op.content {
-                if d.id_start.to_span(d.atom_len()).contains(id) {
-                    return Some(ID::new(change.peer(), op.counter));
-                }
-            }
+            // if let InnerContent::List(InnerListOp::Delete(d)) = &op.content {
+            //     if d.id_start.to_span(d.atom_len()).contains(id) {
+            //         return Some(ID::new(change.peer(), op.counter));
+            //     }
+            // }
         }
     }
 
@@ -1018,61 +1020,61 @@ mod test {
         is_send_sync(loro)
     }
 
-    #[test]
-    fn test_checkout() {
-        let loro = LoroDoc::new();
-        loro.set_peer_id(1).unwrap();
-        let text = loro.get_text("text");
-        let map = loro.get_map("map");
-        let list = loro.get_list("list");
-        let mut txn = loro.txn().unwrap();
-        for i in 0..10 {
-            map.insert_with_txn(&mut txn, "key", i.into()).unwrap();
-            text.insert_with_txn(&mut txn, 0, &i.to_string()).unwrap();
-            list.insert_with_txn(&mut txn, 0, i.into()).unwrap();
-        }
-        txn.commit().unwrap();
-        let b = LoroDoc::new();
-        b.import(&loro.export_snapshot()).unwrap();
-        loro.checkout(&Frontiers::default()).unwrap();
-        {
-            let json = &loro.get_deep_value();
-            assert_eq!(json.to_json(), r#"{"text":"","list":[],"map":{}}"#);
-        }
+    // #[test]
+    // fn test_checkout() {
+    //     let loro = LoroDoc::new();
+    //     loro.set_peer_id(1).unwrap();
+    //     let text = loro.get_text("text");
+    //     let map = loro.get_map("map");
+    //     let list = loro.get_list("list");
+    //     let mut txn = loro.txn().unwrap();
+    //     for i in 0..10 {
+    //         map.insert_with_txn(&mut txn, "key", i.into()).unwrap();
+    //         text.insert_with_txn(&mut txn, 0, &i.to_string()).unwrap();
+    //         list.insert_with_txn(&mut txn, 0, i.into()).unwrap();
+    //     }
+    //     txn.commit().unwrap();
+    //     let b = LoroDoc::new();
+    //     b.import(&loro.export_snapshot()).unwrap();
+    //     loro.checkout(&Frontiers::default()).unwrap();
+    //     {
+    //         let json = &loro.get_deep_value();
+    //         assert_eq!(json.to_json(), r#"{"text":"","list":[],"map":{}}"#);
+    //     }
 
-        b.checkout(&ID::new(1, 2).into()).unwrap();
-        {
-            let json = &b.get_deep_value();
-            assert_eq!(json.to_json(), r#"{"text":"0","list":[0],"map":{"key":0}}"#);
-        }
+    //     b.checkout(&ID::new(1, 2).into()).unwrap();
+    //     {
+    //         let json = &b.get_deep_value();
+    //         assert_eq!(json.to_json(), r#"{"text":"0","list":[0],"map":{"key":0}}"#);
+    //     }
 
-        loro.checkout(&ID::new(1, 3).into()).unwrap();
-        {
-            let json = &loro.get_deep_value();
-            assert_eq!(json.to_json(), r#"{"text":"0","list":[0],"map":{"key":1}}"#);
-        }
+    //     loro.checkout(&ID::new(1, 3).into()).unwrap();
+    //     {
+    //         let json = &loro.get_deep_value();
+    //         assert_eq!(json.to_json(), r#"{"text":"0","list":[0],"map":{"key":1}}"#);
+    //     }
 
-        b.checkout(&ID::new(1, 29).into()).unwrap();
-        {
-            let json = &b.get_deep_value();
-            assert_eq!(
-                json.to_json(),
-                r#"{"text":"9876543210","list":[9,8,7,6,5,4,3,2,1,0],"map":{"key":9}}"#
-            );
-        }
-    }
+    //     b.checkout(&ID::new(1, 29).into()).unwrap();
+    //     {
+    //         let json = &b.get_deep_value();
+    //         assert_eq!(
+    //             json.to_json(),
+    //             r#"{"text":"9876543210","list":[9,8,7,6,5,4,3,2,1,0],"map":{"key":9}}"#
+    //         );
+    //     }
+    // }
 
-    #[test]
-    fn import_batch_err_181() {
-        let a = LoroDoc::new_auto_commit();
-        let update_a = a.export_snapshot();
-        let b = LoroDoc::new_auto_commit();
-        b.import_batch(&[update_a]).unwrap();
-        b.get_text("text").insert(0, "hello").unwrap();
-        b.commit_then_renew();
-        let oplog = b.oplog().lock().unwrap();
-        dbg!(&oplog.arena);
-        drop(oplog);
-        b.export_from(&Default::default());
-    }
+    // #[test]
+    // fn import_batch_err_181() {
+    //     let a = LoroDoc::new_auto_commit();
+    //     let update_a = a.export_snapshot();
+    //     let b = LoroDoc::new_auto_commit();
+    //     b.import_batch(&[update_a]).unwrap();
+    //     b.get_text("text").insert(0, "hello").unwrap();
+    //     b.commit_then_renew();
+    //     let oplog = b.oplog().lock().unwrap();
+    //     dbg!(&oplog.arena);
+    //     drop(oplog);
+    //     b.export_from(&Default::default());
+    // }
 }

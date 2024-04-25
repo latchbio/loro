@@ -1,6 +1,6 @@
 use std::{num::NonZeroU16, sync::Arc};
 
-pub(super) mod tree;
+// pub(super) mod tree;
 mod unknown;
 use itertools::Itertools;
 
@@ -9,26 +9,28 @@ use fxhash::{FxHashMap, FxHashSet};
 use loro_common::{
     ContainerID, Counter, HasCounterSpan, HasIdSpan, IdFull, IdSpan, LoroValue, PeerID, ID,
 };
+use rle::{HasLength, Sliceable};
 
 use crate::{
     change::Lamport,
     container::{
         idx::ContainerIdx,
-        richtext::{
-            richtext_state::{RichtextStateChunk, TextChunk},
-            AnchorType, CrdtRopeDelta, RichtextChunk, RichtextChunkValue, RichtextTracker, StyleOp,
-        },
+        // richtext::{
+        //     richtext_state::{RichtextStateChunk, TextChunk},
+        //     AnchorType, CrdtRopeDelta, RichtextChunk, RichtextChunkValue, RichtextTracker, StyleOp,
+        // },
     },
     cursor::AbsolutePosition,
-    delta::{Delta, MapDelta, MapValue},
+    // delta::{Delta, MapDelta, MapValue},
     event::InternalDiff,
-    op::{OpContainer, RichOp, SliceRange, SliceRanges},
+    op::{OpContainer, RichOp},
     span::{HasId, HasLamport},
     version::Frontiers,
-    InternalString, VersionVector,
+    InternalString,
+    VersionVector,
 };
 
-use self::tree::TreeDiffCalculator;
+// use self::tree::TreeDiffCalculator;
 
 use self::unknown::UnknownDiffCalculator;
 
@@ -306,26 +308,26 @@ impl DiffCalculator {
         self.calculators
             .entry(container.clone())
             .or_insert_with(|| match container.get_type() {
-                crate::ContainerType::Text => (
-                    depth,
-                    ContainerDiffCalculator::Richtext(RichtextDiffCalculator::default()),
-                ),
-                crate::ContainerType::Map => (
-                    depth,
-                    ContainerDiffCalculator::Map(MapDiffCalculator::new(
-                        *container.as_idx().unwrap(),
-                    )),
-                ),
-                crate::ContainerType::List => (
-                    depth,
-                    ContainerDiffCalculator::List(ListDiffCalculator::default()),
-                ),
-                crate::ContainerType::Tree => (
-                    depth,
-                    ContainerDiffCalculator::Tree(TreeDiffCalculator::new(
-                        *container.as_idx().unwrap(),
-                    )),
-                ),
+                // crate::ContainerType::Text => (
+                //     depth,
+                //     ContainerDiffCalculator::Richtext(RichtextDiffCalculator::default()),
+                // ),
+                // crate::ContainerType::Map => (
+                //     depth,
+                //     ContainerDiffCalculator::Map(MapDiffCalculator::new(
+                //         *container.as_idx().unwrap(),
+                //     )),
+                // ),
+                // crate::ContainerType::List => (
+                //     depth,
+                //     ContainerDiffCalculator::List(ListDiffCalculator::default()),
+                // ),
+                // crate::ContainerType::Tree => (
+                //     depth,
+                //     ContainerDiffCalculator::Tree(TreeDiffCalculator::new(
+                //         *container.as_idx().unwrap(),
+                //     )),
+                // ),
                 crate::ContainerType::Unknown(_) => (
                     depth,
                     ContainerDiffCalculator::Unknown(unknown::UnknownDiffCalculator::default()),
@@ -363,428 +365,428 @@ pub(crate) trait DiffCalculatorTrait {
 #[enum_dispatch(DiffCalculatorTrait)]
 #[derive(Debug)]
 pub(crate) enum ContainerDiffCalculator {
-    Map(MapDiffCalculator),
-    List(ListDiffCalculator),
-    Richtext(RichtextDiffCalculator),
-    Tree(TreeDiffCalculator),
+    // Map(MapDiffCalculator),
+    // List(ListDiffCalculator),
+    // Richtext(RichtextDiffCalculator),
+    // Tree(TreeDiffCalculator),
     Unknown(UnknownDiffCalculator),
 }
 
-#[derive(Debug)]
-pub(crate) struct MapDiffCalculator {
-    container_idx: ContainerIdx,
-    changed_key: FxHashSet<InternalString>,
-}
+// #[derive(Debug)]
+// pub(crate) struct MapDiffCalculator {
+//     container_idx: ContainerIdx,
+//     changed_key: FxHashSet<InternalString>,
+// }
 
-impl MapDiffCalculator {
-    pub(crate) fn new(container_idx: ContainerIdx) -> Self {
-        Self {
-            container_idx,
-            changed_key: Default::default(),
-        }
-    }
-}
+// impl MapDiffCalculator {
+//     pub(crate) fn new(container_idx: ContainerIdx) -> Self {
+//         Self {
+//             container_idx,
+//             changed_key: Default::default(),
+//         }
+//     }
+// }
 
-impl DiffCalculatorTrait for MapDiffCalculator {
-    fn start_tracking(&mut self, _oplog: &crate::OpLog, _vv: &crate::VersionVector) {}
+// impl DiffCalculatorTrait for MapDiffCalculator {
+//     fn start_tracking(&mut self, _oplog: &crate::OpLog, _vv: &crate::VersionVector) {}
 
-    fn apply_change(
-        &mut self,
-        _oplog: &crate::OpLog,
-        op: crate::op::RichOp,
-        _vv: Option<&crate::VersionVector>,
-    ) {
-        let map = op.raw_op().content.as_map().unwrap();
-        self.changed_key.insert(map.key.clone());
-    }
+//     fn apply_change(
+//         &mut self,
+//         _oplog: &crate::OpLog,
+//         op: crate::op::RichOp,
+//         _vv: Option<&crate::VersionVector>,
+//     ) {
+//         let map = op.raw_op().content.as_map().unwrap();
+//         self.changed_key.insert(map.key.clone());
+//     }
 
-    fn stop_tracking(&mut self, _oplog: &super::oplog::OpLog, _vv: &crate::VersionVector) {}
+//     fn stop_tracking(&mut self, _oplog: &super::oplog::OpLog, _vv: &crate::VersionVector) {}
 
-    fn calculate_diff(
-        &mut self,
-        oplog: &super::oplog::OpLog,
-        from: &crate::VersionVector,
-        to: &crate::VersionVector,
-        mut on_new_container: impl FnMut(&ContainerID),
-    ) -> InternalDiff {
-        let mut changed = Vec::new();
-        let group = oplog
-            .op_groups
-            .get(&self.container_idx)
-            .unwrap()
-            .as_map()
-            .unwrap();
-        for k in self.changed_key.iter() {
-            let peek_from = group.last_op(k, from);
-            let peek_to = group.last_op(k, to);
-            match (peek_from, peek_to) {
-                (None, None) => {}
-                (None, Some(_)) => changed.push((k.clone(), peek_to)),
-                (Some(_), None) => changed.push((k.clone(), peek_to)),
-                (Some(a), Some(b)) => {
-                    if a != b {
-                        changed.push((k.clone(), peek_to))
-                    }
-                }
-            }
-        }
+//     fn calculate_diff(
+//         &mut self,
+//         oplog: &super::oplog::OpLog,
+//         from: &crate::VersionVector,
+//         to: &crate::VersionVector,
+//         mut on_new_container: impl FnMut(&ContainerID),
+//     ) -> InternalDiff {
+//         let mut changed = Vec::new();
+//         let group = oplog
+//             .op_groups
+//             .get(&self.container_idx)
+//             .unwrap()
+//             .as_map()
+//             .unwrap();
+//         for k in self.changed_key.iter() {
+//             let peek_from = group.last_op(k, from);
+//             let peek_to = group.last_op(k, to);
+//             match (peek_from, peek_to) {
+//                 (None, None) => {}
+//                 (None, Some(_)) => changed.push((k.clone(), peek_to)),
+//                 (Some(_), None) => changed.push((k.clone(), peek_to)),
+//                 (Some(a), Some(b)) => {
+//                     if a != b {
+//                         changed.push((k.clone(), peek_to))
+//                     }
+//                 }
+//             }
+//         }
 
-        let mut updated = FxHashMap::with_capacity_and_hasher(changed.len(), Default::default());
-        for (key, value) in changed {
-            let value = value
-                .map(|v| {
-                    let value = v.value.clone();
-                    if let Some(LoroValue::Container(c)) = &value {
-                        on_new_container(c);
-                    }
+//         let mut updated = FxHashMap::with_capacity_and_hasher(changed.len(), Default::default());
+//         for (key, value) in changed {
+//             let value = value
+//                 .map(|v| {
+//                     let value = v.value.clone();
+//                     if let Some(LoroValue::Container(c)) = &value {
+//                         on_new_container(c);
+//                     }
 
-                    MapValue {
-                        value,
-                        lamp: v.lamport,
-                        peer: v.peer,
-                    }
-                })
-                .unwrap_or_else(|| MapValue {
-                    value: None,
-                    lamp: 0,
-                    peer: 0,
-                });
+//                     MapValue {
+//                         value,
+//                         lamp: v.lamport,
+//                         peer: v.peer,
+//                     }
+//                 })
+//                 .unwrap_or_else(|| MapValue {
+//                     value: None,
+//                     lamp: 0,
+//                     peer: 0,
+//                 });
 
-            updated.insert(key, value);
-        }
-        InternalDiff::Map(MapDelta { updated })
-    }
-}
+//             updated.insert(key, value);
+//         }
+//         InternalDiff::Map(MapDelta { updated })
+//     }
+// }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CompactMapValue {
-    lamport: Lamport,
-    peer: PeerID,
-    value: Option<LoroValue>,
-}
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// struct CompactMapValue {
+//     lamport: Lamport,
+//     peer: PeerID,
+//     value: Option<LoroValue>,
+// }
 
-impl Ord for CompactMapValue {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.lamport
-            .cmp(&other.lamport)
-            .then(self.peer.cmp(&other.peer))
-    }
-}
+// impl Ord for CompactMapValue {
+//     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+//         self.lamport
+//             .cmp(&other.lamport)
+//             .then(self.peer.cmp(&other.peer))
+//     }
+// }
 
-impl PartialOrd for CompactMapValue {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
+// impl PartialOrd for CompactMapValue {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         Some(self.cmp(other))
+//     }
+// }
 
-use rle::{HasLength, Sliceable};
+// use rle::{HasLength, Sliceable};
 
-#[derive(Default)]
-pub(crate) struct ListDiffCalculator {
-    start_vv: VersionVector,
-    tracker: Box<RichtextTracker>,
-}
-impl ListDiffCalculator {
-    pub(crate) fn get_id_latest_pos(&self, id: ID) -> Option<crate::cursor::AbsolutePosition> {
-        self.tracker.get_target_id_latest_index_at_new_version(id)
-    }
-}
+// #[derive(Default)]
+// pub(crate) struct ListDiffCalculator {
+//     start_vv: VersionVector,
+//     tracker: Box<RichtextTracker>,
+// }
+// impl ListDiffCalculator {
+//     pub(crate) fn get_id_latest_pos(&self, id: ID) -> Option<crate::cursor::AbsolutePosition> {
+//         self.tracker.get_target_id_latest_index_at_new_version(id)
+//     }
+// }
 
-impl std::fmt::Debug for ListDiffCalculator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ListDiffCalculator")
-            // .field("tracker", &self.tracker)
-            .finish()
-    }
-}
+// impl std::fmt::Debug for ListDiffCalculator {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct("ListDiffCalculator")
+//             // .field("tracker", &self.tracker)
+//             .finish()
+//     }
+// }
 
-impl DiffCalculatorTrait for ListDiffCalculator {
-    fn start_tracking(&mut self, _oplog: &OpLog, vv: &crate::VersionVector) {
-        if !vv.includes_vv(&self.start_vv) || !self.tracker.all_vv().includes_vv(vv) {
-            self.tracker = Box::new(RichtextTracker::new_with_unknown());
-            self.start_vv = vv.clone();
-        }
+// impl DiffCalculatorTrait for ListDiffCalculator {
+//     fn start_tracking(&mut self, _oplog: &OpLog, vv: &crate::VersionVector) {
+//         if !vv.includes_vv(&self.start_vv) || !self.tracker.all_vv().includes_vv(vv) {
+//             self.tracker = Box::new(RichtextTracker::new_with_unknown());
+//             self.start_vv = vv.clone();
+//         }
 
-        self.tracker.checkout(vv);
-    }
+//         self.tracker.checkout(vv);
+//     }
 
-    fn apply_change(
-        &mut self,
-        _oplog: &OpLog,
-        op: crate::op::RichOp,
-        vv: Option<&crate::VersionVector>,
-    ) {
-        if let Some(vv) = vv {
-            self.tracker.checkout(vv);
-        }
+//     fn apply_change(
+//         &mut self,
+//         _oplog: &OpLog,
+//         op: crate::op::RichOp,
+//         vv: Option<&crate::VersionVector>,
+//     ) {
+//         if let Some(vv) = vv {
+//             self.tracker.checkout(vv);
+//         }
 
-        match &op.op().content {
-            crate::op::InnerContent::List(l) => match l {
-                crate::container::list::list_op::InnerListOp::Insert { slice, pos } => {
-                    self.tracker.insert(
-                        op.id_full(),
-                        *pos,
-                        RichtextChunk::new_text(slice.0.clone()),
-                    );
-                }
-                crate::container::list::list_op::InnerListOp::Delete(del) => {
-                    self.tracker.delete(
-                        op.id_start(),
-                        del.id_start,
-                        del.start() as usize,
-                        del.atom_len(),
-                        del.is_reversed(),
-                    );
-                }
-                _ => unreachable!(),
-            },
-            _ => unreachable!(),
-        }
-    }
+//         match &op.op().content {
+//             crate::op::InnerContent::List(l) => match l {
+//                 crate::container::list::list_op::InnerListOp::Insert { slice, pos } => {
+//                     self.tracker.insert(
+//                         op.id_full(),
+//                         *pos,
+//                         RichtextChunk::new_text(slice.0.clone()),
+//                     );
+//                 }
+//                 crate::container::list::list_op::InnerListOp::Delete(del) => {
+//                     self.tracker.delete(
+//                         op.id_start(),
+//                         del.id_start,
+//                         del.start() as usize,
+//                         del.atom_len(),
+//                         del.is_reversed(),
+//                     );
+//                 }
+//                 _ => unreachable!(),
+//             },
+//             _ => unreachable!(),
+//         }
+//     }
 
-    fn stop_tracking(&mut self, _oplog: &OpLog, _vv: &crate::VersionVector) {}
+//     fn stop_tracking(&mut self, _oplog: &OpLog, _vv: &crate::VersionVector) {}
 
-    fn calculate_diff(
-        &mut self,
-        oplog: &OpLog,
-        from: &crate::VersionVector,
-        to: &crate::VersionVector,
-        mut on_new_container: impl FnMut(&ContainerID),
-    ) -> InternalDiff {
-        let mut delta = Delta::new();
-        for item in self.tracker.diff(from, to) {
-            match item {
-                CrdtRopeDelta::Retain(len) => {
-                    delta = delta.retain(len);
-                }
-                CrdtRopeDelta::Insert {
-                    chunk: value,
-                    id,
-                    lamport,
-                } => match value.value() {
-                    RichtextChunkValue::Text(range) => {
-                        for i in range.clone() {
-                            let v = oplog.arena.get_value(i as usize);
-                            if let Some(LoroValue::Container(c)) = &v {
-                                on_new_container(c);
-                            }
-                        }
-                        delta = delta.insert(SliceRanges {
-                            ranges: smallvec::smallvec![SliceRange(range)],
-                            id: IdFull::new(id.peer, id.counter, lamport.unwrap()),
-                        });
-                    }
-                    RichtextChunkValue::StyleAnchor { .. } => unreachable!(),
-                    RichtextChunkValue::Unknown(len) => {
-                        // assert not unknown id
-                        assert_ne!(id.peer, PeerID::MAX);
-                        let mut acc_len = 0;
-                        for rich_op in oplog.iter_ops(IdSpan::new(
-                            id.peer,
-                            id.counter,
-                            id.counter + len as Counter,
-                        )) {
-                            acc_len += rich_op.content_len();
-                            let op = rich_op.op();
-                            let lamport = rich_op.lamport();
-                            let content = op.content.as_list().unwrap().as_insert().unwrap();
-                            let range = content.0.clone();
-                            for i in content.0 .0.clone() {
-                                let v = oplog.arena.get_value(i as usize);
-                                if let Some(LoroValue::Container(c)) = &v {
-                                    on_new_container(c);
-                                }
-                            }
+//     fn calculate_diff(
+//         &mut self,
+//         oplog: &OpLog,
+//         from: &crate::VersionVector,
+//         to: &crate::VersionVector,
+//         mut on_new_container: impl FnMut(&ContainerID),
+//     ) -> InternalDiff {
+//         let mut delta = Delta::new();
+//         for item in self.tracker.diff(from, to) {
+//             match item {
+//                 CrdtRopeDelta::Retain(len) => {
+//                     delta = delta.retain(len);
+//                 }
+//                 CrdtRopeDelta::Insert {
+//                     chunk: value,
+//                     id,
+//                     lamport,
+//                 } => match value.value() {
+//                     RichtextChunkValue::Text(range) => {
+//                         for i in range.clone() {
+//                             let v = oplog.arena.get_value(i as usize);
+//                             if let Some(LoroValue::Container(c)) = &v {
+//                                 on_new_container(c);
+//                             }
+//                         }
+//                         delta = delta.insert(SliceRanges {
+//                             ranges: smallvec::smallvec![SliceRange(range)],
+//                             id: IdFull::new(id.peer, id.counter, lamport.unwrap()),
+//                         });
+//                     }
+//                     RichtextChunkValue::StyleAnchor { .. } => unreachable!(),
+//                     RichtextChunkValue::Unknown(len) => {
+//                         // assert not unknown id
+//                         assert_ne!(id.peer, PeerID::MAX);
+//                         let mut acc_len = 0;
+//                         for rich_op in oplog.iter_ops(IdSpan::new(
+//                             id.peer,
+//                             id.counter,
+//                             id.counter + len as Counter,
+//                         )) {
+//                             acc_len += rich_op.content_len();
+//                             let op = rich_op.op();
+//                             let lamport = rich_op.lamport();
+//                             let content = op.content.as_list().unwrap().as_insert().unwrap();
+//                             let range = content.0.clone();
+//                             for i in content.0 .0.clone() {
+//                                 let v = oplog.arena.get_value(i as usize);
+//                                 if let Some(LoroValue::Container(c)) = &v {
+//                                     on_new_container(c);
+//                                 }
+//                             }
 
-                            delta = delta.insert(SliceRanges {
-                                ranges: smallvec::smallvec![range],
-                                id: IdFull::new(id.peer, op.counter, lamport),
-                            });
-                        }
+//                             delta = delta.insert(SliceRanges {
+//                                 ranges: smallvec::smallvec![range],
+//                                 id: IdFull::new(id.peer, op.counter, lamport),
+//                             });
+//                         }
 
-                        debug_assert_eq!(acc_len, len as usize);
-                    }
-                },
-                CrdtRopeDelta::Delete(len) => {
-                    delta = delta.delete(len);
-                }
-            }
-        }
+//                         debug_assert_eq!(acc_len, len as usize);
+//                     }
+//                 },
+//                 CrdtRopeDelta::Delete(len) => {
+//                     delta = delta.delete(len);
+//                 }
+//             }
+//         }
 
-        InternalDiff::ListRaw(delta)
-    }
-}
+//         InternalDiff::ListRaw(delta)
+//     }
+// }
 
-#[derive(Debug, Default)]
-pub(crate) struct RichtextDiffCalculator {
-    start_vv: VersionVector,
-    tracker: Box<RichtextTracker>,
-    styles: Vec<StyleOp>,
-}
+// #[derive(Debug, Default)]
+// pub(crate) struct RichtextDiffCalculator {
+//     start_vv: VersionVector,
+//     tracker: Box<RichtextTracker>,
+//     styles: Vec<StyleOp>,
+// }
 
-impl RichtextDiffCalculator {
-    /// This should be called after calc_diff
-    ///
-    /// TODO: Refactor, this can be simplified
-    pub fn get_id_latest_pos(&self, id: ID) -> Option<AbsolutePosition> {
-        self.tracker.get_target_id_latest_index_at_new_version(id)
-    }
-}
+// impl RichtextDiffCalculator {
+//     /// This should be called after calc_diff
+//     ///
+//     /// TODO: Refactor, this can be simplified
+//     pub fn get_id_latest_pos(&self, id: ID) -> Option<AbsolutePosition> {
+//         self.tracker.get_target_id_latest_index_at_new_version(id)
+//     }
+// }
 
-impl DiffCalculatorTrait for RichtextDiffCalculator {
-    fn start_tracking(&mut self, _oplog: &super::oplog::OpLog, vv: &crate::VersionVector) {
-        if !vv.includes_vv(&self.start_vv) || !self.tracker.all_vv().includes_vv(vv) {
-            self.tracker = Box::new(RichtextTracker::new_with_unknown());
-            self.styles.clear();
-            self.start_vv = vv.clone();
-        }
+// impl DiffCalculatorTrait for RichtextDiffCalculator {
+//     fn start_tracking(&mut self, _oplog: &super::oplog::OpLog, vv: &crate::VersionVector) {
+//         if !vv.includes_vv(&self.start_vv) || !self.tracker.all_vv().includes_vv(vv) {
+//             self.tracker = Box::new(RichtextTracker::new_with_unknown());
+//             self.styles.clear();
+//             self.start_vv = vv.clone();
+//         }
 
-        self.tracker.checkout(vv);
-    }
+//         self.tracker.checkout(vv);
+//     }
 
-    fn apply_change(
-        &mut self,
-        _oplog: &super::oplog::OpLog,
-        op: crate::op::RichOp,
-        vv: Option<&crate::VersionVector>,
-    ) {
-        if let Some(vv) = vv {
-            self.tracker.checkout(vv);
-        }
-        match &op.raw_op().content {
-            crate::op::InnerContent::List(l) => match l {
-                crate::container::list::list_op::InnerListOp::Insert { .. } => {
-                    unreachable!()
-                }
-                crate::container::list::list_op::InnerListOp::InsertText {
-                    slice: _,
-                    unicode_start,
-                    unicode_len: len,
-                    pos,
-                } => {
-                    self.tracker.insert(
-                        op.id_full(),
-                        *pos as usize,
-                        RichtextChunk::new_text(*unicode_start..*unicode_start + *len),
-                    );
-                }
-                crate::container::list::list_op::InnerListOp::Delete(del) => {
-                    self.tracker.delete(
-                        op.id_start(),
-                        del.id_start,
-                        del.start() as usize,
-                        del.atom_len(),
-                        del.is_reversed(),
-                    );
-                }
-                crate::container::list::list_op::InnerListOp::StyleStart {
-                    start,
-                    end,
-                    key,
-                    info,
-                    value,
-                } => {
-                    debug_assert!(start < end, "start: {}, end: {}", start, end);
-                    let style_id = self.styles.len();
-                    self.styles.push(StyleOp {
-                        lamport: op.lamport(),
-                        peer: op.peer,
-                        cnt: op.id_start().counter,
-                        key: key.clone(),
-                        value: value.clone(),
-                        info: *info,
-                    });
-                    self.tracker.insert(
-                        op.id_full(),
-                        *start as usize,
-                        RichtextChunk::new_style_anchor(style_id as u32, AnchorType::Start),
-                    );
-                    self.tracker.insert(
-                        op.id_full().inc(1),
-                        // need to shift 1 because we insert the start style anchor before this pos
-                        *end as usize + 1,
-                        RichtextChunk::new_style_anchor(style_id as u32, AnchorType::End),
-                    );
-                }
-                crate::container::list::list_op::InnerListOp::StyleEnd => {}
-            },
-            _ => unreachable!(),
-        }
-    }
+//     fn apply_change(
+//         &mut self,
+//         _oplog: &super::oplog::OpLog,
+//         op: crate::op::RichOp,
+//         vv: Option<&crate::VersionVector>,
+//     ) {
+//         if let Some(vv) = vv {
+//             self.tracker.checkout(vv);
+//         }
+//         match &op.raw_op().content {
+//             crate::op::InnerContent::List(l) => match l {
+//                 crate::container::list::list_op::InnerListOp::Insert { .. } => {
+//                     unreachable!()
+//                 }
+//                 crate::container::list::list_op::InnerListOp::InsertText {
+//                     slice: _,
+//                     unicode_start,
+//                     unicode_len: len,
+//                     pos,
+//                 } => {
+//                     self.tracker.insert(
+//                         op.id_full(),
+//                         *pos as usize,
+//                         RichtextChunk::new_text(*unicode_start..*unicode_start + *len),
+//                     );
+//                 }
+//                 crate::container::list::list_op::InnerListOp::Delete(del) => {
+//                     self.tracker.delete(
+//                         op.id_start(),
+//                         del.id_start,
+//                         del.start() as usize,
+//                         del.atom_len(),
+//                         del.is_reversed(),
+//                     );
+//                 }
+//                 crate::container::list::list_op::InnerListOp::StyleStart {
+//                     start,
+//                     end,
+//                     key,
+//                     info,
+//                     value,
+//                 } => {
+//                     debug_assert!(start < end, "start: {}, end: {}", start, end);
+//                     let style_id = self.styles.len();
+//                     self.styles.push(StyleOp {
+//                         lamport: op.lamport(),
+//                         peer: op.peer,
+//                         cnt: op.id_start().counter,
+//                         key: key.clone(),
+//                         value: value.clone(),
+//                         info: *info,
+//                     });
+//                     self.tracker.insert(
+//                         op.id_full(),
+//                         *start as usize,
+//                         RichtextChunk::new_style_anchor(style_id as u32, AnchorType::Start),
+//                     );
+//                     self.tracker.insert(
+//                         op.id_full().inc(1),
+//                         // need to shift 1 because we insert the start style anchor before this pos
+//                         *end as usize + 1,
+//                         RichtextChunk::new_style_anchor(style_id as u32, AnchorType::End),
+//                     );
+//                 }
+//                 crate::container::list::list_op::InnerListOp::StyleEnd => {}
+//             },
+//             _ => unreachable!(),
+//         }
+//     }
 
-    fn stop_tracking(&mut self, _oplog: &super::oplog::OpLog, _vv: &crate::VersionVector) {}
+//     fn stop_tracking(&mut self, _oplog: &super::oplog::OpLog, _vv: &crate::VersionVector) {}
 
-    fn calculate_diff(
-        &mut self,
-        oplog: &OpLog,
-        from: &crate::VersionVector,
-        to: &crate::VersionVector,
-        _: impl FnMut(&ContainerID),
-    ) -> InternalDiff {
-        let mut delta = Delta::new();
-        for item in self.tracker.diff(from, to) {
-            match item {
-                CrdtRopeDelta::Retain(len) => {
-                    delta = delta.retain(len);
-                }
-                CrdtRopeDelta::Insert {
-                    chunk: value,
-                    id,
-                    lamport,
-                } => match value.value() {
-                    RichtextChunkValue::Text(text) => {
-                        delta = delta.insert(RichtextStateChunk::Text(
-                            // PERF: can be speedup by acquiring lock on arena
-                            TextChunk::new(
-                                oplog
-                                    .arena
-                                    .slice_by_unicode(text.start as usize..text.end as usize),
-                                IdFull::new(id.peer, id.counter, lamport.unwrap()),
-                            ),
-                        ));
-                    }
-                    RichtextChunkValue::StyleAnchor { id, anchor_type } => {
-                        delta = delta.insert(RichtextStateChunk::Style {
-                            style: Arc::new(self.styles[id as usize].clone()),
-                            anchor_type,
-                        });
-                    }
-                    RichtextChunkValue::Unknown(len) => {
-                        // assert not unknown id
-                        assert_ne!(id.peer, PeerID::MAX);
-                        let mut acc_len = 0;
-                        for rich_op in oplog.iter_ops(IdSpan::new(
-                            id.peer,
-                            id.counter,
-                            id.counter + len as Counter,
-                        )) {
-                            acc_len += rich_op.content_len();
-                            let op = rich_op.op();
-                            let lamport = rich_op.lamport();
-                            let content = op.content.as_list().unwrap();
-                            match content {
-                                crate::container::list::list_op::InnerListOp::InsertText {
-                                    slice,
-                                    ..
-                                } => {
-                                    delta = delta.insert(RichtextStateChunk::Text(TextChunk::new(
-                                        slice.clone(),
-                                        IdFull::new(id.peer, op.counter, lamport),
-                                    )));
-                                }
-                                _ => unreachable!("{:?}", content),
-                            }
-                        }
+//     fn calculate_diff(
+//         &mut self,
+//         oplog: &OpLog,
+//         from: &crate::VersionVector,
+//         to: &crate::VersionVector,
+//         _: impl FnMut(&ContainerID),
+//     ) -> InternalDiff {
+//         let mut delta = Delta::new();
+//         for item in self.tracker.diff(from, to) {
+//             match item {
+//                 CrdtRopeDelta::Retain(len) => {
+//                     delta = delta.retain(len);
+//                 }
+//                 CrdtRopeDelta::Insert {
+//                     chunk: value,
+//                     id,
+//                     lamport,
+//                 } => match value.value() {
+//                     RichtextChunkValue::Text(text) => {
+//                         delta = delta.insert(RichtextStateChunk::Text(
+//                             // PERF: can be speedup by acquiring lock on arena
+//                             TextChunk::new(
+//                                 oplog
+//                                     .arena
+//                                     .slice_by_unicode(text.start as usize..text.end as usize),
+//                                 IdFull::new(id.peer, id.counter, lamport.unwrap()),
+//                             ),
+//                         ));
+//                     }
+//                     RichtextChunkValue::StyleAnchor { id, anchor_type } => {
+//                         delta = delta.insert(RichtextStateChunk::Style {
+//                             style: Arc::new(self.styles[id as usize].clone()),
+//                             anchor_type,
+//                         });
+//                     }
+//                     RichtextChunkValue::Unknown(len) => {
+//                         // assert not unknown id
+//                         assert_ne!(id.peer, PeerID::MAX);
+//                         let mut acc_len = 0;
+//                         for rich_op in oplog.iter_ops(IdSpan::new(
+//                             id.peer,
+//                             id.counter,
+//                             id.counter + len as Counter,
+//                         )) {
+//                             acc_len += rich_op.content_len();
+//                             let op = rich_op.op();
+//                             let lamport = rich_op.lamport();
+//                             let content = op.content.as_list().unwrap();
+//                             match content {
+//                                 crate::container::list::list_op::InnerListOp::InsertText {
+//                                     slice,
+//                                     ..
+//                                 } => {
+//                                     delta = delta.insert(RichtextStateChunk::Text(TextChunk::new(
+//                                         slice.clone(),
+//                                         IdFull::new(id.peer, op.counter, lamport),
+//                                     )));
+//                                 }
+//                                 _ => unreachable!("{:?}", content),
+//                             }
+//                         }
 
-                        debug_assert_eq!(acc_len, len as usize);
-                    }
-                },
-                CrdtRopeDelta::Delete(len) => {
-                    delta = delta.delete(len);
-                }
-            }
-        }
+//                         debug_assert_eq!(acc_len, len as usize);
+//                     }
+//                 },
+//                 CrdtRopeDelta::Delete(len) => {
+//                     delta = delta.delete(len);
+//                 }
+//             }
+//         }
 
-        InternalDiff::RichtextRaw(delta)
-    }
-}
+//         InternalDiff::RichtextRaw(delta)
+//     }
+// }

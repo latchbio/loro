@@ -1,8 +1,8 @@
-pub use crate::container::richtext::config::{StyleConfig, StyleConfigMap};
+// pub use crate::container::richtext::config::{StyleConfig, StyleConfigMap};
 
 #[derive(Clone)]
 pub struct Configure {
-    pub(crate) text_style_config: Arc<RwLock<StyleConfigMap>>,
+    pub(crate) text_style_config: Arc<RwLock<()>>,
     record_timestamp: Arc<AtomicBool>,
     merge_interval: Arc<AtomicI64>,
 }
@@ -10,7 +10,7 @@ pub struct Configure {
 impl Default for Configure {
     fn default() -> Self {
         Self {
-            text_style_config: Arc::new(RwLock::new(StyleConfigMap::default_rich_text_config())),
+            text_style_config: Arc::new(RwLock::new(())),
             record_timestamp: Arc::new(AtomicBool::new(false)),
             merge_interval: Arc::new(AtomicI64::new(1000 * 1000)),
         }
@@ -18,7 +18,7 @@ impl Default for Configure {
 }
 
 impl Configure {
-    pub fn text_style_config(&self) -> &Arc<RwLock<StyleConfigMap>> {
+    pub fn text_style_config(&self) -> &Arc<RwLock<()>> {
         &self.text_style_config
     }
 

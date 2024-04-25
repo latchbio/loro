@@ -4,7 +4,7 @@ use crate::{
     id::{Counter, PeerID, ID},
     span::{HasCounter, HasId, HasLamport},
 };
-use crate::{delta::DeltaValue, LoroValue};
+// use crate::{delta::DeltaValue, LoroValue};
 use enum_as_inner::EnumAsInner;
 use loro_common::{ContainerType, CounterSpan, IdFull, IdSpan};
 use rle::{HasIndex, HasLength, Mergable, Sliceable};
@@ -93,23 +93,23 @@ impl OpWithId {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemoteOp<'a> {
+pub struct RemoteOp {
     pub(crate) counter: Counter,
     pub(crate) container: ContainerID,
-    pub(crate) content: RawOpContent<'a>,
+    pub(crate) content: RawOpContent,
 }
 
 /// This is used to propagate messages between inner module.
 /// It's a temporary struct, and will be converted to Op when it's persisted.
 #[derive(Debug, Clone)]
-pub struct RawOp<'a> {
+pub struct RawOp {
     pub id: ID,
     pub lamport: Lamport,
     pub container: ContainerIdx,
-    pub content: RawOpContent<'a>,
+    pub content: RawOpContent,
 }
 
-impl RawOp<'_> {
+impl RawOp {
     pub(crate) fn id_full(&self) -> loro_common::IdFull {
         IdFull::new(self.id.peer, self.id.counter, self.lamport)
     }
@@ -138,9 +138,9 @@ impl Op {
     }
 }
 
-impl<'a> RemoteOp<'a> {
+impl RemoteOp {
     #[allow(unused)]
-    pub(crate) fn into_static(self) -> RemoteOp<'static> {
+    pub(crate) fn into_static(self) -> RemoteOp {
         RemoteOp {
             counter: self.counter,
             container: self.container,
@@ -179,7 +179,7 @@ impl Sliceable for Op {
     }
 }
 
-impl<'a> Mergable for RemoteOp<'a> {
+impl Mergable for RemoteOp {
     fn is_mergable(&self, _other: &Self, _cfg: &()) -> bool {
         // don't merge remote op, because it's already merged.
         false
@@ -190,13 +190,13 @@ impl<'a> Mergable for RemoteOp<'a> {
     }
 }
 
-impl<'a> HasLength for RemoteOp<'a> {
+impl HasLength for RemoteOp {
     fn content_len(&self) -> usize {
         self.content.atom_len()
     }
 }
 
-impl<'a> Sliceable for RemoteOp<'a> {
+impl Sliceable for RemoteOp {
     fn slice(&self, from: usize, to: usize) -> Self {
         assert!(to > from);
         RemoteOp {
@@ -215,7 +215,7 @@ impl HasIndex for Op {
     }
 }
 
-impl<'a> HasIndex for RemoteOp<'a> {
+impl HasIndex for RemoteOp {
     type Int = Counter;
 
     fn get_start_index(&self) -> Self::Int {
@@ -229,7 +229,7 @@ impl HasCounter for Op {
     }
 }
 
-impl<'a> HasCounter for RemoteOp<'a> {
+impl HasCounter for RemoteOp {
     fn ctr_start(&self) -> Counter {
         self.counter
     }
@@ -357,244 +357,244 @@ impl<'a> RichOp<'a> {
 }
 
 // Note: It will be encoded into binary format, so the order of its fields should not be changed.
-#[derive(PartialEq, Debug, EnumAsInner, Clone, Serialize, Deserialize)]
-pub enum ListSlice<'a> {
-    RawData(Cow<'a, [LoroValue]>),
-    RawStr {
-        str: Cow<'a, str>,
-        unicode_len: usize,
-    },
-}
+// #[derive(PartialEq, Debug, EnumAsInner, Clone, Serialize, Deserialize)]
+// pub enum ListSlice<'a> {
+//     RawData(Cow<'a, [LoroValue]>),
+//     RawStr {
+//         str: Cow<'a, str>,
+//         unicode_len: usize,
+//     },
+// }
 
-impl<'a> ListSlice<'a> {
-    pub fn from_borrowed_str(str: &'a str) -> Self {
-        Self::RawStr {
-            str: Cow::Borrowed(str),
-            unicode_len: str.chars().count(),
-        }
-    }
-}
+// impl ListSlice<'a> {
+//     pub fn from_borrowed_str(str: & str) -> Self {
+//         Self::RawStr {
+//             str: Cow::Borrowed(str),
+//             unicode_len: str.chars().count(),
+//         }
+//     }
+// }
 
-#[repr(transparent)]
-#[derive(PartialEq, Eq, Debug, Clone, Serialize)]
-pub struct SliceRange(pub Range<u32>);
+// #[repr(transparent)]
+// #[derive(PartialEq, Eq, Debug, Clone, Serialize)]
+// pub struct SliceRange(pub Range<u32>);
 
-const UNKNOWN_START: u32 = u32::MAX / 2;
-impl SliceRange {
-    #[inline(always)]
-    pub fn is_unknown(&self) -> bool {
-        self.0.start == UNKNOWN_START
-    }
+// const UNKNOWN_START: u32 = u32::MAX / 2;
+// impl SliceRange {
+//     #[inline(always)]
+//     pub fn is_unknown(&self) -> bool {
+//         self.0.start == UNKNOWN_START
+//     }
 
-    #[inline(always)]
-    pub fn new_unknown(size: u32) -> Self {
-        Self(UNKNOWN_START..UNKNOWN_START + size)
-    }
+//     #[inline(always)]
+//     pub fn new_unknown(size: u32) -> Self {
+//         Self(UNKNOWN_START..UNKNOWN_START + size)
+//     }
 
-    #[inline(always)]
-    pub fn new(range: Range<u32>) -> Self {
-        Self(range)
-    }
+//     #[inline(always)]
+//     pub fn new(range: Range<u32>) -> Self {
+//         Self(range)
+//     }
 
-    #[inline(always)]
-    pub fn to_range(&self) -> Range<usize> {
-        self.0.start as usize..self.0.end as usize
-    }
-}
+//     #[inline(always)]
+//     pub fn to_range(&self) -> Range<usize> {
+//         self.0.start as usize..self.0.end as usize
+//     }
+// }
 
-impl From<Range<u32>> for SliceRange {
-    fn from(a: Range<u32>) -> Self {
-        SliceRange(a)
-    }
-}
+// impl From<Range<u32>> for SliceRange {
+//     fn from(a: Range<u32>) -> Self {
+//         SliceRange(a)
+//     }
+// }
 
-impl HasLength for SliceRange {
-    fn content_len(&self) -> usize {
-        self.0.len()
-    }
-}
+// impl HasLength for SliceRange {
+//     fn content_len(&self) -> usize {
+//         self.0.len()
+//     }
+// }
 
-impl Sliceable for SliceRange {
-    fn slice(&self, from: usize, to: usize) -> Self {
-        if self.is_unknown() {
-            Self::new_unknown((to - from) as u32)
-        } else {
-            SliceRange(self.0.start + from as u32..self.0.start + to as u32)
-        }
-    }
-}
+// impl Sliceable for SliceRange {
+//     fn slice(&self, from: usize, to: usize) -> Self {
+//         if self.is_unknown() {
+//             Self::new_unknown((to - from) as u32)
+//         } else {
+//             SliceRange(self.0.start + from as u32..self.0.start + to as u32)
+//         }
+//     }
+// }
 
-impl Mergable for SliceRange {
-    fn merge(&mut self, other: &Self, _: &()) {
-        if self.is_unknown() {
-            self.0.end += other.0.end - other.0.start;
-        } else {
-            self.0.end = other.0.end;
-        }
-    }
+// impl Mergable for SliceRange {
+//     fn merge(&mut self, other: &Self, _: &()) {
+//         if self.is_unknown() {
+//             self.0.end += other.0.end - other.0.start;
+//         } else {
+//             self.0.end = other.0.end;
+//         }
+//     }
 
-    fn is_mergable(&self, other: &Self, _conf: &()) -> bool
-    where
-        Self: Sized,
-    {
-        (self.is_unknown() && other.is_unknown()) || self.0.end == other.0.start
-    }
-}
+//     fn is_mergable(&self, other: &Self, _conf: &()) -> bool
+//     where
+//         Self: Sized,
+//     {
+//         (self.is_unknown() && other.is_unknown()) || self.0.end == other.0.start
+//     }
+// }
 
-impl<'a> ListSlice<'a> {
-    #[inline(always)]
-    pub fn unknown_range(len: usize) -> SliceRange {
-        let start = UNKNOWN_START;
-        let end = len as u32 + UNKNOWN_START;
-        SliceRange(start..end)
-    }
+// impl ListSlice<'a> {
+//     #[inline(always)]
+//     pub fn unknown_range(len: usize) -> SliceRange {
+//         let start = UNKNOWN_START;
+//         let end = len as u32 + UNKNOWN_START;
+//         SliceRange(start..end)
+//     }
 
-    #[inline(always)]
-    pub fn is_unknown(range: &SliceRange) -> bool {
-        range.is_unknown()
-    }
+//     #[inline(always)]
+//     pub fn is_unknown(range: &SliceRange) -> bool {
+//         range.is_unknown()
+//     }
 
-    pub fn to_static(&self) -> ListSlice<'static> {
-        match self {
-            ListSlice::RawData(x) => ListSlice::RawData(Cow::Owned(x.to_vec())),
-            ListSlice::RawStr { str, unicode_len } => ListSlice::RawStr {
-                str: Cow::Owned(str.to_string()),
-                unicode_len: *unicode_len,
-            },
-        }
-    }
-}
+//     pub fn to_static(&self) -> ListSlice<'static> {
+//         match self {
+//             ListSlice::RawData(x) => ListSlice::RawData(Cow::Owned(x.to_vec())),
+//             ListSlice::RawStr { str, unicode_len } => ListSlice::RawStr {
+//                 str: Cow::Owned(str.to_string()),
+//                 unicode_len: *unicode_len,
+//             },
+//         }
+//     }
+// }
 
-impl<'a> HasLength for ListSlice<'a> {
-    fn content_len(&self) -> usize {
-        match self {
-            ListSlice::RawStr { unicode_len, .. } => *unicode_len,
-            ListSlice::RawData(x) => x.len(),
-        }
-    }
-}
+// impl HasLength for ListSlice<'a> {
+//     fn content_len(&self) -> usize {
+//         match self {
+//             ListSlice::RawStr { unicode_len, .. } => *unicode_len,
+//             ListSlice::RawData(x) => x.len(),
+//         }
+//     }
+// }
 
-impl<'a> Sliceable for ListSlice<'a> {
-    fn slice(&self, from: usize, to: usize) -> Self {
-        match self {
-            ListSlice::RawStr {
-                str,
-                unicode_len: _,
-            } => {
-                let ans = str.chars().skip(from).take(to - from).collect::<String>();
-                ListSlice::RawStr {
-                    str: Cow::Owned(ans),
-                    unicode_len: to - from,
-                }
-            }
-            ListSlice::RawData(x) => match x {
-                Cow::Borrowed(x) => ListSlice::RawData(Cow::Borrowed(&x[from..to])),
-                Cow::Owned(x) => ListSlice::RawData(Cow::Owned(x[from..to].into())),
-            },
-        }
-    }
-}
+// impl Sliceable for ListSlice<'a> {
+//     fn slice(&self, from: usize, to: usize) -> Self {
+//         match self {
+//             ListSlice::RawStr {
+//                 str,
+//                 unicode_len: _,
+//             } => {
+//                 let ans = str.chars().skip(from).take(to - from).collect::<String>();
+//                 ListSlice::RawStr {
+//                     str: Cow::Owned(ans),
+//                     unicode_len: to - from,
+//                 }
+//             }
+//             ListSlice::RawData(x) => match x {
+//                 Cow::Borrowed(x) => ListSlice::RawData(Cow::Borrowed(&x[from..to])),
+//                 Cow::Owned(x) => ListSlice::RawData(Cow::Owned(x[from..to].into())),
+//             },
+//         }
+//     }
+// }
 
-impl<'a> Mergable for ListSlice<'a> {
-    fn is_mergable(&self, _other: &Self, _: &()) -> bool {
-        false
-    }
-}
+// impl Mergable for ListSlice<'a> {
+//     fn is_mergable(&self, _other: &Self, _: &()) -> bool {
+//         false
+//     }
+// }
 
-#[derive(Debug, Clone)]
-pub struct SliceRanges {
-    pub ranges: SmallVec<[SliceRange; 2]>,
-    pub id: IdFull,
-}
+// #[derive(Debug, Clone)]
+// pub struct SliceRanges {
+//     pub ranges: SmallVec<[SliceRange; 2]>,
+//     pub id: IdFull,
+// }
 
-impl Serialize for SliceRanges {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut s = serializer.serialize_seq(Some(self.ranges.len()))?;
-        for item in self.ranges.iter() {
-            s.serialize_element(item)?;
-        }
-        s.end()
-    }
-}
+// impl Serialize for SliceRanges {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         let mut s = serializer.serialize_seq(Some(self.ranges.len()))?;
+//         for item in self.ranges.iter() {
+//             s.serialize_element(item)?;
+//         }
+//         s.end()
+//     }
+// }
 
-impl DeltaValue for SliceRanges {
-    fn value_extend(&mut self, other: Self) -> Result<(), Self> {
-        if self.id.peer != other.id.peer {
-            return Err(other);
-        }
+// impl DeltaValue for SliceRanges {
+//     fn value_extend(&mut self, other: Self) -> Result<(), Self> {
+//         if self.id.peer != other.id.peer {
+//             return Err(other);
+//         }
 
-        if self.id.counter + self.length() as Counter != other.id.counter {
-            return Err(other);
-        }
+//         if self.id.counter + self.length() as Counter != other.id.counter {
+//             return Err(other);
+//         }
 
-        if self.id.lamport + self.length() as Lamport != other.id.lamport {
-            return Err(other);
-        }
+//         if self.id.lamport + self.length() as Lamport != other.id.lamport {
+//             return Err(other);
+//         }
 
-        self.ranges.extend(other.ranges);
-        Ok(())
-    }
+//         self.ranges.extend(other.ranges);
+//         Ok(())
+//     }
 
-    fn take(&mut self, target_len: usize) -> Self {
-        let mut right = Self {
-            ranges: Default::default(),
-            id: self.id.inc(target_len as i32),
-        };
+//     fn take(&mut self, target_len: usize) -> Self {
+//         let mut right = Self {
+//             ranges: Default::default(),
+//             id: self.id.inc(target_len as i32),
+//         };
 
-        let right_target_len = self.length() - target_len;
-        let mut right_len = 0;
-        while right_len < right_target_len {
-            let range = self.ranges.pop().unwrap();
-            let range_len = range.content_len();
-            if right_len + range_len <= target_len {
-                right.ranges.push(range);
-                right_len += range_len;
-            } else {
-                let new_range = range.slice(right_len * 2 - right_target_len, range_len);
-                right.ranges.push(new_range);
-                self.ranges
-                    .push(range.slice(0, right_len * 2 - right_target_len));
-                right_len = right_target_len;
-            }
-        }
+//         let right_target_len = self.length() - target_len;
+//         let mut right_len = 0;
+//         while right_len < right_target_len {
+//             let range = self.ranges.pop().unwrap();
+//             let range_len = range.content_len();
+//             if right_len + range_len <= target_len {
+//                 right.ranges.push(range);
+//                 right_len += range_len;
+//             } else {
+//                 let new_range = range.slice(right_len * 2 - right_target_len, range_len);
+//                 right.ranges.push(new_range);
+//                 self.ranges
+//                     .push(range.slice(0, right_len * 2 - right_target_len));
+//                 right_len = right_target_len;
+//             }
+//         }
 
-        std::mem::swap(self, &mut right);
-        let left = right;
-        #[allow(clippy::let_and_return)]
-        left
-    }
+//         std::mem::swap(self, &mut right);
+//         let left = right;
+//         #[allow(clippy::let_and_return)]
+//         left
+//     }
 
-    fn length(&self) -> usize {
-        self.ranges.iter().fold(0, |acc, x| acc + x.atom_len())
-    }
-}
+//     fn length(&self) -> usize {
+//         self.ranges.iter().fold(0, |acc, x| acc + x.atom_len())
+//     }
+// }
 
-#[cfg(test)]
-mod test {
-    use crate::LoroValue;
+// #[cfg(test)]
+// mod test {
+//     use crate::LoroValue;
 
-    use super::ListSlice;
+//     use super::ListSlice;
 
-    #[test]
-    fn fix_fields_order() {
-        let list_slice = vec![
-            ListSlice::RawData(vec![LoroValue::Bool(true)].into()),
-            ListSlice::RawStr {
-                str: "".into(),
-                unicode_len: 0,
-            },
-        ];
-        let list_slice_buf = vec![2, 0, 1, 1, 1, 1, 0, 0];
-        assert_eq!(
-            &postcard::to_allocvec(&list_slice).unwrap(),
-            &list_slice_buf
-        );
-        assert_eq!(
-            postcard::from_bytes::<Vec<ListSlice>>(&list_slice_buf).unwrap(),
-            list_slice
-        );
-    }
-}
+//     #[test]
+//     fn fix_fields_order() {
+//         let list_slice = vec![
+//             ListSlice::RawData(vec![LoroValue::Bool(true)].into()),
+//             ListSlice::RawStr {
+//                 str: "".into(),
+//                 unicode_len: 0,
+//             },
+//         ];
+//         let list_slice_buf = vec![2, 0, 1, 1, 1, 1, 0, 0];
+//         assert_eq!(
+//             &postcard::to_allocvec(&list_slice).unwrap(),
+//             &list_slice_buf
+//         );
+//         assert_eq!(
+//             postcard::from_bytes::<Vec<ListSlice>>(&list_slice_buf).unwrap(),
+//             list_slice
+//         );
+//     }
+// }
