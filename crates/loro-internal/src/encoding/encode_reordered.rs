@@ -376,7 +376,6 @@ fn extract_ops(
         let cid = &containers[container_index as usize];
         let kind = ValueKind::from_u8(value_type);
         let value = Value::decode(kind, &mut value_reader, arenas, ID::new(peer, counter))?;
-
         let content = decode_op(
             cid,
             value,
@@ -386,7 +385,6 @@ fn extract_ops(
             arenas,
             prop,
         )?;
-
         let container = if cid.is_unknown() {
             OpContainer::ID(cid.clone())
         } else {
@@ -1125,7 +1123,7 @@ mod encode {
                 }
                 crate::container::list::list_op::InnerListOp::StyleEnd => 0,
             },
-            FutureInnerContent::Map(map) => 0,
+            FutureInnerContent::Map(_map) => 0,
             FutureInnerContent::Tree(_) => 0,
             FutureInnerContent::Unknown { .. } => 0,
         }
@@ -1134,7 +1132,27 @@ mod encode {
     fn get_op_prop(op: &Op, registers: &mut EncodedRegisters) -> i32 {
         match &op.content {
             // The future should not use register to encode prop
-            crate::op::InnerContent::Future(f) => get_future_op_prop(f),
+            crate::op::InnerContent::Future(f) => match &f {
+                FutureInnerContent::List(list) => match list {
+                    crate::container::list::list_op::InnerListOp::Insert { pos, .. } => *pos as i32,
+                    crate::container::list::list_op::InnerListOp::InsertText { pos, .. } => {
+                        *pos as i32
+                    }
+                    crate::container::list::list_op::InnerListOp::Delete(span) => {
+                        span.span.pos as i32
+                    }
+                    crate::container::list::list_op::InnerListOp::StyleStart { start, .. } => {
+                        *start as i32
+                    }
+                    crate::container::list::list_op::InnerListOp::StyleEnd => 0,
+                },
+                FutureInnerContent::Map(map) => {
+                    let key = registers.key.register(&map.key);
+                    key as i32
+                }
+                FutureInnerContent::Tree(_) => 0,
+                FutureInnerContent::Unknown { .. } => 0,
+            },
         }
     }
 
@@ -1260,7 +1278,7 @@ fn decode_op(
                 FutureInnerContent::List(crate::container::list::list_op::InnerListOp::StyleStart {
                     start: prop as u32,
                     end: prop as u32 + mark.len,
-                    key: mark.key.into(),
+                    key: mark.key,
                     value: mark.value,
                     info: TextStyleInfoFlag::from_byte(mark.info),
                 })

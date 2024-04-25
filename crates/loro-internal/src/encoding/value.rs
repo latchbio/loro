@@ -92,7 +92,7 @@ impl ValueKind {
     }
 }
 
-#[derive(EnumAsInner)]
+#[derive(Debug, EnumAsInner)]
 pub enum Value<'a> {
     Null,
     True,
@@ -115,6 +115,7 @@ pub enum Value<'a> {
     Future(FutureValue<'a>),
 }
 
+#[derive(Debug)]
 pub enum FutureValue<'a> {
     // The future value cannot depend on the arena for encoding.
     Unknown { kind: u8, data: &'a [u8] },
