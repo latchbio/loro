@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 loro = { path = "../loro" }
+loro-unknown = { path = "../../../loro-unknown/crates/loro-unknown" }
 loro-internal = { path = "../loro-internal", features = ["test_utils"] }
 arbitrary = "1"
 tabled = "0.10"

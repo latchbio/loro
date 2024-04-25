@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use arbitrary::Arbitrary;
 use fxhash::FxHashSet;
-use loro::{ContainerType, Frontiers};
+use loro::{ContainerType, Frontiers, LoroDoc};
 use tabled::TableIteratorExt;
 
 use crate::array_mut_ref;
@@ -132,6 +132,17 @@ impl CRDTFuzzer {
         }
     }
 
+    fn check_unknown(&self) {
+        let loro = &self.actors[0].loro;
+        loro.attach();
+        let unknown_loro = loro_unknown::LoroDoc::new();
+        unknown_loro.import(&loro.export_snapshot()).unwrap();
+
+        let loro2 = LoroDoc::new();
+        loro2.import(&unknown_loro.export_snapshot()).unwrap();
+        assert_eq!(loro.get_deep_value(), loro2.get_deep_value());
+    }
+
     fn check_equal(&mut self) {
         for i in 0..self.site_num() - 1 {
             for j in i + 1..self.site_num() {
@@ -230,4 +241,5 @@ pub fn test_multi_sites(site_num: u8, fuzz_targets: Vec<FuzzTarget>, actions: &m
     fuzzer.check_equal();
     fuzzer.check_tracker();
     fuzzer.check_history();
+    fuzzer.check_unknown();
 }
