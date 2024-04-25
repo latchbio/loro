@@ -26,7 +26,8 @@ impl OpGroups {
         for op in change.ops.iter() {
             if matches!(
                 op.content,
-                InnerContent::List(_) | InnerContent::Future(FutureInnerContent::Unknown { .. })
+                InnerContent::Future(FutureInnerContent::Unknown { .. })
+                    | InnerContent::Future(FutureInnerContent::List { .. })
             ) {
                 continue;
             }
@@ -36,10 +37,10 @@ impl OpGroups {
                 .groups
                 .entry(container)
                 .or_insert_with(|| match &op.content {
-                    InnerContent::Map(_) => OpGroup::Map(MapOpGroup::default()),
-                    InnerContent::List(_) => unreachable!(),
-                    InnerContent::Tree(_) => OpGroup::Tree(TreeOpGroup::default()),
                     InnerContent::Future(f) => match f {
+                        FutureInnerContent::Map(_) => OpGroup::Map(MapOpGroup::default()),
+                        FutureInnerContent::List(_) => unreachable!(),
+                        FutureInnerContent::Tree(_) => OpGroup::Tree(TreeOpGroup::default()),
                         FutureInnerContent::Unknown { .. } => unreachable!(),
                     },
                 });
@@ -135,12 +136,23 @@ impl MapOpGroup {
 impl OpGroupTrait for MapOpGroup {
     fn insert(&mut self, op: &RichOp) {
         let key = match &op.raw_op().content {
-            InnerContent::Map(map) => map.key.clone(),
+            InnerContent::Future(f) => match f {
+                FutureInnerContent::Map(map) => map.key.clone(),
+                _ => unreachable!(),
+            },
             _ => unreachable!(),
         };
         let entry = self.ops.entry(key).or_default();
         entry.insert(GroupedMapOpInfo {
-            value: op.raw_op().content.as_map().unwrap().value.clone(),
+            value: op
+                .raw_op()
+                .content
+                .as_future()
+                .unwrap()
+                .as_map()
+                .unwrap()
+                .value
+                .clone(),
             counter: op.raw_op().counter,
             lamport: op.lamport(),
             peer: op.peer,
@@ -189,7 +201,7 @@ pub(crate) struct TreeOpGroup {
 
 impl OpGroupTrait for TreeOpGroup {
     fn insert(&mut self, op: &RichOp) {
-        let tree_op = op.raw_op().content.as_tree().unwrap();
+        let tree_op = op.raw_op().content.as_future().unwrap().as_tree().unwrap();
         let target = tree_op.target;
         let parent = tree_op.parent;
         let entry = self.ops.entry(op.lamport()).or_default();

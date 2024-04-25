@@ -547,7 +547,8 @@ fn change_to_diff(
                 EventHint::InsertText { styles, pos, .. } => {
                     let mut delta = Delta::new().retain(pos as usize);
                     for op in ops.iter() {
-                        let InnerListOp::InsertText { slice, .. } = op.content.as_list().unwrap()
+                        let InnerListOp::InsertText { slice, .. } =
+                            op.content.as_future().unwrap().as_list().unwrap()
                         else {
                             unreachable!()
                         };
@@ -574,7 +575,14 @@ fn change_to_diff(
                 }),
                 EventHint::InsertList { .. } => {
                     for op in ops.iter() {
-                        let (range, pos) = op.content.as_list().unwrap().as_insert().unwrap();
+                        let (range, pos) = op
+                            .content
+                            .as_future()
+                            .unwrap()
+                            .as_list()
+                            .unwrap()
+                            .as_insert()
+                            .unwrap();
                         let values = arena
                             .get_values(range.to_range())
                             .into_iter()

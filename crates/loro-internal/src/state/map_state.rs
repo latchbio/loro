@@ -14,7 +14,7 @@ use crate::{
     encoding::{EncodeMode, StateSnapshotDecodeContext, StateSnapshotEncoder},
     event::{Diff, Index, InternalDiff},
     handler::ValueOrHandler,
-    op::{Op, RawOp, RawOpContent},
+    op::{FutureRawOpContent, Op, RawOp, RawOpContent},
     txn::Transaction,
     DocState, InternalString, LoroValue,
 };
@@ -78,31 +78,30 @@ impl ContainerState for MapState {
     }
 
     fn apply_local_op(&mut self, op: &RawOp, _: &Op) -> LoroResult<()> {
-        match &op.content {
-            RawOpContent::Map(MapSet { key, value }) => {
-                if value.is_none() {
-                    self.insert(
-                        key.clone(),
-                        MapValue {
-                            lamp: op.lamport,
-                            peer: op.id.peer,
-                            value: None,
-                        },
-                    );
-                    return Ok(());
-                }
-
+        if let RawOpContent::Future(FutureRawOpContent::Map(MapSet { key, value })) = &op.content {
+            if value.is_none() {
                 self.insert(
                     key.clone(),
                     MapValue {
                         lamp: op.lamport,
                         peer: op.id.peer,
-                        value: Some(value.clone().unwrap()),
+                        value: None,
                     },
                 );
-                Ok(())
+                return Ok(());
             }
-            _ => unreachable!(),
+
+            self.insert(
+                key.clone(),
+                MapValue {
+                    lamp: op.lamport,
+                    peer: op.id.peer,
+                    value: Some(value.clone().unwrap()),
+                },
+            );
+            Ok(())
+        } else {
+            unreachable!()
         }
     }
 
@@ -177,7 +176,7 @@ impl ContainerState for MapState {
                 "MapState::from_snapshot_ops: op.atom_len() != 1"
             );
 
-            let content = op.op.content.as_map().unwrap();
+            let content = op.op.content.as_future().unwrap().as_map().unwrap();
             self.map.insert(
                 content.key.clone(),
                 MapValue {

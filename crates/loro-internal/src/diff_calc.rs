@@ -22,7 +22,7 @@ use crate::{
     cursor::AbsolutePosition,
     delta::{Delta, MapDelta, MapValue},
     event::InternalDiff,
-    op::{OpContainer, RichOp, SliceRange, SliceRanges},
+    op::{FutureInnerContent, InnerContent, OpContainer, RichOp, SliceRange, SliceRanges},
     span::{HasId, HasLamport},
     version::Frontiers,
     InternalString, VersionVector,
@@ -394,7 +394,7 @@ impl DiffCalculatorTrait for MapDiffCalculator {
         op: crate::op::RichOp,
         _vv: Option<&crate::VersionVector>,
     ) {
-        let map = op.raw_op().content.as_map().unwrap();
+        let map = op.raw_op().content.as_future().unwrap().as_map().unwrap();
         self.changed_key.insert(map.key.clone());
     }
 
@@ -518,8 +518,8 @@ impl DiffCalculatorTrait for ListDiffCalculator {
             self.tracker.checkout(vv);
         }
 
-        match &op.op().content {
-            crate::op::InnerContent::List(l) => match l {
+        if let InnerContent::Future(FutureInnerContent::List(l)) = &op.op().content {
+            match l {
                 crate::container::list::list_op::InnerListOp::Insert { slice, pos } => {
                     self.tracker.insert(
                         op.id_full(),
@@ -537,8 +537,7 @@ impl DiffCalculatorTrait for ListDiffCalculator {
                     );
                 }
                 _ => unreachable!(),
-            },
-            _ => unreachable!(),
+            }
         }
     }
 
@@ -587,7 +586,14 @@ impl DiffCalculatorTrait for ListDiffCalculator {
                             acc_len += rich_op.content_len();
                             let op = rich_op.op();
                             let lamport = rich_op.lamport();
-                            let content = op.content.as_list().unwrap().as_insert().unwrap();
+                            let content = op
+                                .content
+                                .as_future()
+                                .unwrap()
+                                .as_list()
+                                .unwrap()
+                                .as_insert()
+                                .unwrap();
                             let range = content.0.clone();
                             for i in content.0 .0.clone() {
                                 let v = oplog.arena.get_value(i as usize);
@@ -651,8 +657,9 @@ impl DiffCalculatorTrait for RichtextDiffCalculator {
         if let Some(vv) = vv {
             self.tracker.checkout(vv);
         }
-        match &op.raw_op().content {
-            crate::op::InnerContent::List(l) => match l {
+
+        if let InnerContent::Future(FutureInnerContent::List(l)) = &op.raw_op().content {
+            match l {
                 crate::container::list::list_op::InnerListOp::Insert { .. } => {
                     unreachable!()
                 }
@@ -707,8 +714,7 @@ impl DiffCalculatorTrait for RichtextDiffCalculator {
                     );
                 }
                 crate::container::list::list_op::InnerListOp::StyleEnd => {}
-            },
-            _ => unreachable!(),
+            }
         }
     }
 
@@ -761,7 +767,7 @@ impl DiffCalculatorTrait for RichtextDiffCalculator {
                             acc_len += rich_op.content_len();
                             let op = rich_op.op();
                             let lamport = rich_op.lamport();
-                            let content = op.content.as_list().unwrap();
+                            let content = op.content.as_future().unwrap().as_list().unwrap();
                             match content {
                                 crate::container::list::list_op::InnerListOp::InsertText {
                                     slice,

@@ -11,6 +11,7 @@ use crate::container::idx::ContainerIdx;
 use crate::delta::{TreeDiff, TreeDiffItem, TreeExternalDiff};
 use crate::encoding::{EncodeMode, StateSnapshotDecodeContext, StateSnapshotEncoder};
 use crate::event::InternalDiff;
+use crate::op::{FutureRawOpContent, RawOpContent};
 use crate::txn::Transaction;
 use crate::DocState;
 use crate::{
@@ -236,23 +237,22 @@ impl ContainerState for TreeState {
     }
 
     fn apply_local_op(&mut self, raw_op: &RawOp, _op: &crate::op::Op) -> LoroResult<()> {
-        match raw_op.content {
-            crate::op::RawOpContent::Tree(tree) => {
-                let TreeOp { target, parent, .. } = tree;
-                // TODO: use TreeParentId
-                let parent = match parent {
-                    Some(parent) => {
-                        if TreeID::is_deleted_root(&parent) {
-                            TreeParentId::Deleted
-                        } else {
-                            TreeParentId::Node(parent)
-                        }
+        if let RawOpContent::Future(FutureRawOpContent::Tree(tree)) = raw_op.content {
+            let TreeOp { target, parent, .. } = tree;
+            // TODO: use TreeParentId
+            let parent = match parent {
+                Some(parent) => {
+                    if TreeID::is_deleted_root(&parent) {
+                        TreeParentId::Deleted
+                    } else {
+                        TreeParentId::Node(parent)
                     }
-                    None => TreeParentId::None,
-                };
-                self.mov(target, parent, raw_op.id_full())
-            }
-            _ => unreachable!(),
+                }
+                None => TreeParentId::None,
+            };
+            self.mov(target, parent, raw_op.id_full())
+        } else {
+            unreachable!()
         }
     }
 
@@ -349,7 +349,7 @@ impl ContainerState for TreeState {
         assert_eq!(ctx.mode, EncodeMode::Snapshot);
         for op in ctx.ops {
             assert_eq!(op.op.atom_len(), 1);
-            let content = op.op.content.as_tree().unwrap();
+            let content = op.op.content.as_future().unwrap().as_tree().unwrap();
             let target = content.target;
             let parent = content.parent;
             // TODO: use TreeParentId

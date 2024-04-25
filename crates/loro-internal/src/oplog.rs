@@ -16,7 +16,9 @@ use crate::encoding::ParsedHeaderAndBody;
 use crate::encoding::{decode_oplog, encode_oplog, EncodeMode};
 use crate::group::OpGroups;
 use crate::id::{Counter, PeerID, ID};
-use crate::op::{FutureInnerContent, ListSlice, OpContainer, RawOpContent, RemoteOp, RichOp};
+use crate::op::{
+    FutureInnerContent, FutureRawOpContent, ListSlice, OpContainer, RawOpContent, RemoteOp, RichOp,
+};
 use crate::span::{HasCounterSpan, HasIdSpan, HasLamportSpan};
 use crate::version::{Frontiers, ImVersionVector, VersionVector};
 use crate::LoroError;
@@ -557,77 +559,90 @@ impl OpLog {
         };
         let mut contents: SmallVec<[_; 1]> = SmallVec::new();
         match &op.content {
-            crate::op::InnerContent::List(list) => match list {
-                list_op::InnerListOp::Insert { slice, pos } => match container.container_type() {
-                    loro_common::ContainerType::Text => {
-                        let str = self.arena.slice_str_by_unicode_range(
-                            slice.0.start as usize..slice.0.end as usize,
-                        );
-                        contents.push(RawOpContent::List(list_op::ListOp::Insert {
-                            slice: ListSlice::RawStr {
-                                unicode_len: str.chars().count(),
-                                str: Cow::Owned(str),
-                            },
-                            pos: *pos,
-                        }));
-                    }
-                    loro_common::ContainerType::List => {
-                        contents.push(RawOpContent::List(list_op::ListOp::Insert {
-                            slice: ListSlice::RawData(Cow::Owned(
-                                self.arena
-                                    .get_values(slice.0.start as usize..slice.0.end as usize),
-                            )),
-                            pos: *pos,
-                        }))
-                    }
-                    _ => unreachable!(),
-                },
-                list_op::InnerListOp::InsertText {
-                    slice,
-                    unicode_len: len,
-                    unicode_start: _,
-                    pos,
-                } => match container.container_type() {
-                    loro_common::ContainerType::Text => {
-                        contents.push(RawOpContent::List(list_op::ListOp::Insert {
-                            slice: ListSlice::RawStr {
-                                unicode_len: *len as usize,
-                                str: Cow::Owned(std::str::from_utf8(slice).unwrap().to_owned()),
-                            },
-                            pos: *pos as usize,
-                        }));
-                    }
-                    _ => unreachable!(),
-                },
-                list_op::InnerListOp::Delete(del) => {
-                    contents.push(RawOpContent::List(list_op::ListOp::Delete(*del)))
-                }
-                list_op::InnerListOp::StyleStart {
-                    start,
-                    end,
-                    key,
-                    value,
-                    info,
-                } => contents.push(RawOpContent::List(list_op::ListOp::StyleStart {
-                    start: *start,
-                    end: *end,
-                    key: key.clone(),
-                    value: value.clone(),
-                    info: *info,
-                })),
-                list_op::InnerListOp::StyleEnd => {
-                    contents.push(RawOpContent::List(list_op::ListOp::StyleEnd))
-                }
-            },
-            crate::op::InnerContent::Map(map) => {
-                let value = map.value.clone();
-                contents.push(RawOpContent::Map(crate::container::map::MapSet {
-                    key: map.key.clone(),
-                    value,
-                }))
-            }
-            crate::op::InnerContent::Tree(tree) => contents.push(RawOpContent::Tree(*tree)),
             crate::op::InnerContent::Future(f) => match f {
+                FutureInnerContent::List(list) => match list {
+                    list_op::InnerListOp::Insert { slice, pos } => match container.container_type()
+                    {
+                        loro_common::ContainerType::Text => {
+                            let str = self.arena.slice_str_by_unicode_range(
+                                slice.0.start as usize..slice.0.end as usize,
+                            );
+                            contents.push(RawOpContent::Future(FutureRawOpContent::List(
+                                list_op::ListOp::Insert {
+                                    slice: ListSlice::RawStr {
+                                        unicode_len: str.chars().count(),
+                                        str: Cow::Owned(str),
+                                    },
+                                    pos: *pos,
+                                },
+                            )));
+                        }
+                        loro_common::ContainerType::List => contents.push(RawOpContent::Future(
+                            FutureRawOpContent::List(list_op::ListOp::Insert {
+                                slice: ListSlice::RawData(Cow::Owned(
+                                    self.arena
+                                        .get_values(slice.0.start as usize..slice.0.end as usize),
+                                )),
+                                pos: *pos,
+                            }),
+                        )),
+                        _ => unreachable!(),
+                    },
+                    list_op::InnerListOp::InsertText {
+                        slice,
+                        unicode_len: len,
+                        unicode_start: _,
+                        pos,
+                    } => match container.container_type() {
+                        loro_common::ContainerType::Text => {
+                            contents.push(RawOpContent::Future(FutureRawOpContent::List(
+                                list_op::ListOp::Insert {
+                                    slice: ListSlice::RawStr {
+                                        unicode_len: *len as usize,
+                                        str: Cow::Owned(
+                                            std::str::from_utf8(slice).unwrap().to_owned(),
+                                        ),
+                                    },
+                                    pos: *pos as usize,
+                                },
+                            )));
+                        }
+                        _ => unreachable!(),
+                    },
+                    list_op::InnerListOp::Delete(del) => contents.push(RawOpContent::Future(
+                        FutureRawOpContent::List(list_op::ListOp::Delete(*del)),
+                    )),
+                    list_op::InnerListOp::StyleStart {
+                        start,
+                        end,
+                        key,
+                        value,
+                        info,
+                    } => contents.push(RawOpContent::Future(FutureRawOpContent::List(
+                        list_op::ListOp::StyleStart {
+                            start: *start,
+                            end: *end,
+                            key: key.clone(),
+                            value: value.clone(),
+                            info: *info,
+                        },
+                    ))),
+                    list_op::InnerListOp::StyleEnd => contents.push(RawOpContent::Future(
+                        FutureRawOpContent::List(list_op::ListOp::StyleEnd),
+                    )),
+                },
+                FutureInnerContent::Map(map) => {
+                    let value = map.value.clone();
+                    contents.push(RawOpContent::Future(FutureRawOpContent::Map(
+                        crate::container::map::MapSet {
+                            key: map.key.clone(),
+                            value,
+                        },
+                    )))
+                }
+                FutureInnerContent::Tree(tree) => {
+                    contents.push(RawOpContent::Future(FutureRawOpContent::Tree(*tree)))
+                }
                 FutureInnerContent::Unknown { op_len, value } => contents.push(
                     RawOpContent::Future(crate::op::FutureRawOpContent::Unknown {
                         op_len: *op_len,

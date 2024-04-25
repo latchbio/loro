@@ -23,7 +23,7 @@ use crate::{
     delta::{Delta, DeltaItem, StyleMeta, StyleMetaItem},
     encoding::{EncodeMode, StateSnapshotDecodeContext, StateSnapshotEncoder},
     event::{Diff, Index, InternalDiff},
-    op::{Op, RawOp},
+    op::{FutureInnerContent, FutureRawOpContent, InnerContent, Op, RawOp, RawOpContent},
     txn::Transaction,
     utils::{lazy::LazyLoad, string_slice::StringSlice},
     DocState,
@@ -485,8 +485,8 @@ impl ContainerState for RichtextState {
     }
 
     fn apply_local_op(&mut self, r_op: &RawOp, op: &Op) -> LoroResult<()> {
-        match &op.content {
-            crate::op::InnerContent::List(l) => match l {
+        if let InnerContent::Future(FutureInnerContent::List(l)) = &op.content {
+            match l {
                 list_op::InnerListOp::Insert { slice: _, pos: _ } => {
                     unreachable!()
                 }
@@ -538,9 +538,10 @@ impl ContainerState for RichtextState {
                     );
                 }
                 list_op::InnerListOp::StyleEnd => {}
-            },
-            _ => unreachable!(),
-        }
+            }
+        } else {
+            unreachable!()
+        };
 
         // self.check_consistency_between_content_and_style_ranges();
         Ok(())
@@ -610,7 +611,7 @@ impl ContainerState for RichtextState {
         let mut id_to_style = FxHashMap::default();
         for op in ctx.ops {
             let id = op.id_full();
-            let chunk = match op.op.content.into_list().unwrap() {
+            let chunk = match op.op.content.into_future().unwrap().into_list().unwrap() {
                 list_op::InnerListOp::InsertText { slice, .. } => {
                     RichtextStateChunk::new_text(slice.clone(), id)
                 }

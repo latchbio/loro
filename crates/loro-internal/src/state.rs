@@ -555,45 +555,46 @@ impl DocState {
     fn set_container_parent_by_op(&mut self, raw_op: &RawOp) {
         let container = raw_op.container;
         match &raw_op.content {
-            RawOpContent::List(op) => {
-                if let ListOp::Insert {
-                    slice: ListSlice::RawData(list),
-                    ..
-                } = op
-                {
-                    let list = match list {
-                        std::borrow::Cow::Borrowed(list) => list.iter(),
-                        std::borrow::Cow::Owned(list) => list.iter(),
-                    };
-                    for value in list {
-                        if value.is_container() {
-                            let c = value.as_container().unwrap();
-                            let idx = self.arena.register_container(c);
-                            self.arena.set_parent(idx, Some(container));
+            RawOpContent::Future(f) => match f {
+                FutureRawOpContent::List(op) => {
+                    if let ListOp::Insert {
+                        slice: ListSlice::RawData(list),
+                        ..
+                    } = op
+                    {
+                        let list = match list {
+                            std::borrow::Cow::Borrowed(list) => list.iter(),
+                            std::borrow::Cow::Owned(list) => list.iter(),
+                        };
+                        for value in list {
+                            if value.is_container() {
+                                let c = value.as_container().unwrap();
+                                let idx = self.arena.register_container(c);
+                                self.arena.set_parent(idx, Some(container));
+                            }
                         }
                     }
                 }
-            }
-            RawOpContent::Map(MapSet { key: _, value }) => {
-                if value.is_none() {
-                    return;
+                FutureRawOpContent::Map(MapSet { key: _, value }) => {
+                    if value.is_none() {
+                        return;
+                    }
+                    let value = value.as_ref().unwrap();
+                    if value.is_container() {
+                        let idx = self.arena.register_container(value.as_container().unwrap());
+                        self.arena.set_parent(idx, Some(container));
+                    }
                 }
-                let value = value.as_ref().unwrap();
-                if value.is_container() {
-                    let idx = self.arena.register_container(value.as_container().unwrap());
-                    self.arena.set_parent(idx, Some(container));
+                FutureRawOpContent::Tree(TreeOp { target, .. }) => {
+                    // create associated metadata container
+                    // TODO: maybe we could create map container only when setting metadata
+                    let container_id = target.associated_meta_container();
+                    let child_idx = self.arena.register_container(&container_id);
+                    self.arena.set_parent(child_idx, Some(container));
                 }
-            }
-            RawOpContent::Tree(TreeOp { target, .. }) => {
-                // create associated metadata container
-                // TODO: maybe we could create map container only when setting metadata
-                let container_id = target.associated_meta_container();
-                let child_idx = self.arena.register_container(&container_id);
-                self.arena.set_parent(child_idx, Some(container));
-            }
-            RawOpContent::Future(f) => match f {
                 FutureRawOpContent::Unknown { .. } => unreachable!(),
             },
+            _ => unreachable!(),
         }
     }
 

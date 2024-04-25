@@ -9,7 +9,7 @@ use crate::{
     },
     cursor::{Cursor, Side},
     delta::{DeltaItem, StyleMeta, TreeDiffItem, TreeExternalDiff},
-    op::ListSlice,
+    op::{FutureRawOpContent, ListSlice},
     state::{ContainerState, State, TreeParentId},
     txn::EventHint,
     utils::{string_slice::StringSlice, utf16::count_utf16_len},
@@ -1108,13 +1108,15 @@ impl TextHandler {
 
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::List(crate::container::list::list_op::ListOp::Insert {
-                slice: ListSlice::RawStr {
-                    str: Cow::Borrowed(s),
-                    unicode_len,
+            crate::op::RawOpContent::Future(FutureRawOpContent::List(
+                crate::container::list::list_op::ListOp::Insert {
+                    slice: ListSlice::RawStr {
+                        str: Cow::Borrowed(s),
+                        unicode_len,
+                    },
+                    pos: entity_index,
                 },
-                pos: entity_index,
-            }),
+            )),
             EventHint::InsertText {
                 pos: pos as u32,
                 styles,
@@ -1178,10 +1180,12 @@ impl TextHandler {
             let event_start = event_end - range.event_len as isize;
             txn.apply_local_op(
                 inner.container_idx,
-                crate::op::RawOpContent::List(ListOp::Delete(DeleteSpanWithId::new(
-                    range.id_start,
-                    range.entity_start as isize,
-                    range.entity_len() as isize,
+                crate::op::RawOpContent::Future(FutureRawOpContent::List(ListOp::Delete(
+                    DeleteSpanWithId::new(
+                        range.id_start,
+                        range.entity_start as isize,
+                        range.entity_len() as isize,
+                    ),
                 ))),
                 EventHint::DeleteText {
                     span: DeleteSpan {
@@ -1359,13 +1363,13 @@ impl TextHandler {
         drop(doc_state);
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::List(ListOp::StyleStart {
+            crate::op::RawOpContent::Future(FutureRawOpContent::List(ListOp::StyleStart {
                 start: entity_start as u32,
                 end: entity_end as u32,
                 key: key.clone(),
                 value: value.clone(),
                 info: flag,
-            }),
+            })),
             EventHint::Mark {
                 start: start as u32,
                 end: end as u32,
@@ -1376,7 +1380,7 @@ impl TextHandler {
 
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::List(ListOp::StyleEnd),
+            crate::op::RawOpContent::Future(FutureRawOpContent::List(ListOp::StyleEnd)),
             EventHint::MarkEnd,
             &inner.state,
         )?;
@@ -1591,10 +1595,12 @@ impl ListHandler {
 
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::List(crate::container::list::list_op::ListOp::Insert {
-                slice: ListSlice::RawData(Cow::Owned(vec![v.clone()])),
-                pos,
-            }),
+            crate::op::RawOpContent::Future(FutureRawOpContent::List(
+                crate::container::list::list_op::ListOp::Insert {
+                    slice: ListSlice::RawData(Cow::Owned(vec![v.clone()])),
+                    pos,
+                },
+            )),
             EventHint::InsertList { len: 1 },
             &inner.state,
         )
@@ -1670,10 +1676,12 @@ impl ListHandler {
         let v = LoroValue::Container(container_id.clone());
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::List(crate::container::list::list_op::ListOp::Insert {
-                slice: ListSlice::RawData(Cow::Owned(vec![v.clone()])),
-                pos,
-            }),
+            crate::op::RawOpContent::Future(FutureRawOpContent::List(
+                crate::container::list::list_op::ListOp::Insert {
+                    slice: ListSlice::RawData(Cow::Owned(vec![v.clone()])),
+                    pos,
+                },
+            )),
             EventHint::InsertList { len: 1 },
             &inner.state,
         )?;
@@ -1715,10 +1723,8 @@ impl ListHandler {
         for id in ids.into_iter() {
             txn.apply_local_op(
                 inner.container_idx,
-                crate::op::RawOpContent::List(ListOp::Delete(DeleteSpanWithId::new(
-                    id.id(),
-                    pos as isize,
-                    1,
+                crate::op::RawOpContent::Future(FutureRawOpContent::List(ListOp::Delete(
+                    DeleteSpanWithId::new(id.id(), pos as isize, 1),
                 ))),
                 EventHint::DeleteList(DeleteSpan::new(pos as isize, 1)),
                 &inner.state,
@@ -1938,10 +1944,12 @@ impl MapHandler {
         let inner = self.inner.try_attached_state()?;
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::Map(crate::container::map::MapSet {
-                key: key.into(),
-                value: Some(value.clone()),
-            }),
+            crate::op::RawOpContent::Future(FutureRawOpContent::Map(
+                crate::container::map::MapSet {
+                    key: key.into(),
+                    value: Some(value.clone()),
+                },
+            )),
             EventHint::Map {
                 key: key.into(),
                 value: Some(value.clone()),
@@ -1980,10 +1988,12 @@ impl MapHandler {
         let container_id = ContainerID::new_normal(id, child.kind());
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::Map(crate::container::map::MapSet {
-                key: key.into(),
-                value: Some(LoroValue::Container(container_id.clone())),
-            }),
+            crate::op::RawOpContent::Future(FutureRawOpContent::Map(
+                crate::container::map::MapSet {
+                    key: key.into(),
+                    value: Some(LoroValue::Container(container_id.clone())),
+                },
+            )),
             EventHint::Map {
                 key: key.into(),
                 value: Some(LoroValue::Container(container_id.clone())),
@@ -2009,10 +2019,12 @@ impl MapHandler {
         let inner = self.inner.try_attached_state()?;
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::Map(crate::container::map::MapSet {
-                key: key.into(),
-                value: None,
-            }),
+            crate::op::RawOpContent::Future(FutureRawOpContent::Map(
+                crate::container::map::MapSet {
+                    key: key.into(),
+                    value: None,
+                },
+            )),
             EventHint::Map {
                 key: key.into(),
                 value: None,
@@ -2184,10 +2196,10 @@ impl TreeHandler {
         let inner = self.inner.try_attached_state()?;
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp {
+            crate::op::RawOpContent::Future(FutureRawOpContent::Tree(TreeOp {
                 target,
                 parent: Some(TreeID::delete_root()),
-            }),
+            })),
             EventHint::Tree(TreeDiffItem {
                 target,
                 action: TreeExternalDiff::Delete,
@@ -2220,10 +2232,10 @@ impl TreeHandler {
         };
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp {
+            crate::op::RawOpContent::Future(FutureRawOpContent::Tree(TreeOp {
                 target: tree_id,
                 parent,
-            }),
+            })),
             EventHint::Tree(event_hint),
             &inner.state,
         )?;
@@ -2251,7 +2263,7 @@ impl TreeHandler {
         let inner = self.inner.try_attached_state()?;
         txn.apply_local_op(
             inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp { target, parent }),
+            crate::op::RawOpContent::Future(FutureRawOpContent::Tree(TreeOp { target, parent })),
             EventHint::Tree(TreeDiffItem {
                 target,
                 action: TreeExternalDiff::Move(parent),

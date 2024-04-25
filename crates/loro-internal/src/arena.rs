@@ -19,7 +19,7 @@ use crate::{
         ContainerID,
     },
     id::Counter,
-    op::{InnerContent, ListSlice, Op, RawOp, RawOpContent, SliceRange},
+    op::{FutureInnerContent, InnerContent, ListSlice, Op, RawOp, RawOpContent, SliceRange},
     LoroValue,
 };
 
@@ -252,72 +252,89 @@ impl SharedArena {
     ) -> Op {
         let container = container.into();
         match content {
-            crate::op::RawOpContent::Map(MapSet { key, value }) => Op {
-                counter,
-                container,
-                content: crate::op::InnerContent::Map(MapSet { key, value }),
-            },
-            crate::op::RawOpContent::List(list) => match list {
-                ListOp::Insert { slice, pos } => match slice {
-                    ListSlice::RawData(values) => {
-                        let range = self.alloc_values(values.iter().cloned());
-                        Op {
-                            counter,
-                            container,
-                            content: crate::op::InnerContent::List(InnerListOp::Insert {
-                                slice: SliceRange::from(range.start as u32..range.end as u32),
-                                pos,
-                            }),
-                        }
-                    }
-                    ListSlice::RawStr { str, unicode_len } => {
-                        let (slice, info) = self.alloc_str_with_slice(&str);
-                        Op {
-                            counter,
-                            container,
-                            content: crate::op::InnerContent::List(InnerListOp::InsertText {
-                                slice,
-                                unicode_start: info.start as u32,
-                                unicode_len: unicode_len as u32,
-                                pos: pos as u32,
-                            }),
-                        }
-                    }
-                },
-                ListOp::Delete(span) => Op {
+            crate::op::RawOpContent::Future(f) => match f {
+                crate::op::FutureRawOpContent::Map(MapSet { key, value }) => Op {
                     counter,
                     container,
-                    content: crate::op::InnerContent::List(InnerListOp::Delete(span)),
+                    content: InnerContent::Future(crate::op::FutureInnerContent::Map(MapSet {
+                        key,
+                        value,
+                    })),
                 },
-                ListOp::StyleStart {
-                    start,
-                    end,
-                    info,
-                    key,
-                    value,
-                } => Op {
-                    counter,
-                    container,
-                    content: InnerContent::List(InnerListOp::StyleStart {
+                crate::op::FutureRawOpContent::List(list) => match list {
+                    ListOp::Insert { slice, pos } => match slice {
+                        ListSlice::RawData(values) => {
+                            let range = self.alloc_values(values.iter().cloned());
+                            Op {
+                                counter,
+                                container,
+                                content: InnerContent::Future(crate::op::FutureInnerContent::List(
+                                    InnerListOp::Insert {
+                                        slice: SliceRange::from(
+                                            range.start as u32..range.end as u32,
+                                        ),
+                                        pos,
+                                    },
+                                )),
+                            }
+                        }
+                        ListSlice::RawStr { str, unicode_len } => {
+                            let (slice, info) = self.alloc_str_with_slice(&str);
+                            Op {
+                                counter,
+                                container,
+                                content: InnerContent::Future(crate::op::FutureInnerContent::List(
+                                    InnerListOp::InsertText {
+                                        slice,
+                                        unicode_start: info.start as u32,
+                                        unicode_len: unicode_len as u32,
+                                        pos: pos as u32,
+                                    },
+                                )),
+                            }
+                        }
+                    },
+                    ListOp::Delete(span) => Op {
+                        counter,
+                        container,
+                        content: InnerContent::Future(crate::op::FutureInnerContent::List(
+                            InnerListOp::Delete(span),
+                        )),
+                    },
+                    ListOp::StyleStart {
                         start,
                         end,
-                        key,
                         info,
+                        key,
                         value,
-                    }),
+                    } => Op {
+                        counter,
+                        container,
+                        content: InnerContent::Future(FutureInnerContent::List(
+                            InnerListOp::StyleStart {
+                                start,
+                                end,
+                                key,
+                                info,
+                                value,
+                            },
+                        )),
+                    },
+                    ListOp::StyleEnd => Op {
+                        counter,
+                        container,
+                        content: InnerContent::Future(FutureInnerContent::List(
+                            InnerListOp::StyleEnd,
+                        )),
+                    },
                 },
-                ListOp::StyleEnd => Op {
+                crate::op::FutureRawOpContent::Tree(tree) => Op {
                     counter,
                     container,
-                    content: InnerContent::List(InnerListOp::StyleEnd),
+                    content: crate::op::InnerContent::Future(crate::op::FutureInnerContent::Tree(
+                        tree,
+                    )),
                 },
-            },
-            crate::op::RawOpContent::Tree(tree) => Op {
-                counter,
-                container,
-                content: crate::op::InnerContent::Tree(tree),
-            },
-            crate::op::RawOpContent::Future(f) => match f {
                 crate::op::FutureRawOpContent::Unknown { op_len, value } => Op {
                     counter,
                     container,

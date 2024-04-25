@@ -26,40 +26,40 @@ pub enum ContentType {
 
 #[derive(EnumAsInner, Debug, Clone)]
 pub enum InnerContent {
-    List(InnerListOp),
-    Map(MapSet),
-    Tree(TreeOp),
     // The future content should not use any encoded arena context.
     Future(FutureInnerContent),
 }
 
 #[derive(EnumAsInner, Debug, Clone)]
 pub enum FutureInnerContent {
+    List(InnerListOp),
+    Map(MapSet),
+    Tree(TreeOp),
     Unknown { op_len: usize, value: OwnedValue },
 }
 
 // Note: It will be encoded into binary format, so the order of its fields should not be changed.
 #[derive(EnumAsInner, Debug, PartialEq, Serialize, Deserialize)]
 pub enum RawOpContent<'a> {
-    Map(MapSet),
-    List(ListOp<'a>),
-    Tree(TreeOp),
     #[serde(untagged)]
-    Future(FutureRawOpContent),
+    Future(FutureRawOpContent<'a>),
 }
 
 #[derive(EnumAsInner, Debug, PartialEq, Serialize, Deserialize)]
-pub enum FutureRawOpContent {
+pub enum FutureRawOpContent<'a> {
+    Map(MapSet),
+    List(ListOp<'a>),
+    Tree(TreeOp),
     Unknown { op_len: usize, value: OwnedValue },
 }
 
 impl<'a> Clone for RawOpContent<'a> {
     fn clone(&self) -> Self {
         match self {
-            Self::Map(arg0) => Self::Map(arg0.clone()),
-            Self::List(arg0) => Self::List(arg0.clone()),
-            Self::Tree(arg0) => Self::Tree(*arg0),
             Self::Future(f) => Self::Future(match f {
+                FutureRawOpContent::Map(arg0) => FutureRawOpContent::Map(arg0.clone()),
+                FutureRawOpContent::List(arg0) => FutureRawOpContent::List(arg0.clone()),
+                FutureRawOpContent::Tree(arg0) => FutureRawOpContent::Tree(*arg0),
                 FutureRawOpContent::Unknown { op_len, value } => FutureRawOpContent::Unknown {
                     op_len: *op_len,
                     value: value.clone(),
@@ -72,30 +72,30 @@ impl<'a> Clone for RawOpContent<'a> {
 impl<'a> RawOpContent<'a> {
     pub fn to_static(&self) -> RawOpContent<'static> {
         match self {
-            Self::Map(arg0) => RawOpContent::Map(arg0.clone()),
-            Self::List(arg0) => match arg0 {
-                ListOp::Insert { slice, pos } => RawOpContent::List(ListOp::Insert {
-                    slice: slice.to_static(),
-                    pos: *pos,
-                }),
-                ListOp::Delete(x) => RawOpContent::List(ListOp::Delete(*x)),
-                ListOp::StyleStart {
-                    start,
-                    end,
-                    key,
-                    value,
-                    info,
-                } => RawOpContent::List(ListOp::StyleStart {
-                    start: *start,
-                    end: *end,
-                    key: key.clone(),
-                    value: value.clone(),
-                    info: *info,
-                }),
-                ListOp::StyleEnd => RawOpContent::List(ListOp::StyleEnd),
-            },
-            Self::Tree(arg0) => RawOpContent::Tree(*arg0),
             Self::Future(f) => RawOpContent::Future(match f {
+                FutureRawOpContent::Map(arg0) => FutureRawOpContent::Map(arg0.clone()),
+                FutureRawOpContent::List(arg0) => match arg0 {
+                    ListOp::Insert { slice, pos } => FutureRawOpContent::List(ListOp::Insert {
+                        slice: slice.to_static(),
+                        pos: *pos,
+                    }),
+                    ListOp::Delete(x) => FutureRawOpContent::List(ListOp::Delete(*x)),
+                    ListOp::StyleStart {
+                        start,
+                        end,
+                        key,
+                        value,
+                        info,
+                    } => FutureRawOpContent::List(ListOp::StyleStart {
+                        start: *start,
+                        end: *end,
+                        key: key.clone(),
+                        value: value.clone(),
+                        info: *info,
+                    }),
+                    ListOp::StyleEnd => FutureRawOpContent::List(ListOp::StyleEnd),
+                },
+                FutureRawOpContent::Tree(arg0) => FutureRawOpContent::Tree(*arg0),
                 FutureRawOpContent::Unknown { op_len, value } => FutureRawOpContent::Unknown {
                     op_len: *op_len,
                     value: value.clone(),
@@ -144,10 +144,10 @@ impl<T: Clone + InsertContentTrait> CloneContent for T {
 impl<'a> HasLength for RawOpContent<'a> {
     fn content_len(&self) -> usize {
         match self {
-            RawOpContent::Map(x) => x.content_len(),
-            RawOpContent::List(x) => x.content_len(),
-            RawOpContent::Tree(x) => x.content_len(),
             RawOpContent::Future(f) => match f {
+                FutureRawOpContent::Map(x) => x.content_len(),
+                FutureRawOpContent::List(x) => x.content_len(),
+                FutureRawOpContent::Tree(x) => x.content_len(),
                 FutureRawOpContent::Unknown { op_len, .. } => *op_len,
             },
         }
@@ -157,12 +157,12 @@ impl<'a> HasLength for RawOpContent<'a> {
 impl<'a> Sliceable for RawOpContent<'a> {
     fn slice(&self, from: usize, to: usize) -> Self {
         match self {
-            RawOpContent::Map(x) => RawOpContent::Map(x.slice(from, to)),
-            RawOpContent::List(x) => RawOpContent::List(x.slice(from, to)),
-            RawOpContent::Tree(x) => RawOpContent::Tree(x.slice(from, to)),
-            RawOpContent::Future(f) => match f {
+            RawOpContent::Future(f) => RawOpContent::Future(match f {
+                FutureRawOpContent::Map(x) => FutureRawOpContent::Map(x.slice(from, to)),
+                FutureRawOpContent::List(x) => FutureRawOpContent::List(x.slice(from, to)),
+                FutureRawOpContent::Tree(x) => FutureRawOpContent::Tree(x.slice(from, to)),
                 FutureRawOpContent::Unknown { .. } => unreachable!(),
-            },
+            }),
         }
     }
 }
@@ -172,9 +172,9 @@ impl<'a> Mergable for RawOpContent<'a> {
     where
         Self: Sized,
     {
-        match (self, other) {
-            (RawOpContent::Map(x), RawOpContent::Map(y)) => x.is_mergable(y, &()),
-            (RawOpContent::List(x), RawOpContent::List(y)) => x.is_mergable(y, &()),
+        match (self.as_future().unwrap(), other.as_future().unwrap()) {
+            (FutureRawOpContent::Map(x), FutureRawOpContent::Map(y)) => x.is_mergable(y, &()),
+            (FutureRawOpContent::List(x), FutureRawOpContent::List(y)) => x.is_mergable(y, &()),
             _ => false,
         }
     }
@@ -184,32 +184,32 @@ impl<'a> Mergable for RawOpContent<'a> {
         Self: Sized,
     {
         match self {
-            RawOpContent::Map(x) => match _other {
-                RawOpContent::Map(y) => x.merge(y, &()),
-                _ => unreachable!(),
-            },
-            RawOpContent::List(x) => match _other {
-                RawOpContent::List(y) => x.merge(y, &()),
-                _ => unreachable!(),
-            },
-            RawOpContent::Tree(x) => match _other {
-                RawOpContent::Tree(y) => x.merge(y, &()),
-                _ => unreachable!(),
-            },
             RawOpContent::Future(f) => match f {
+                FutureRawOpContent::Map(x) => match _other {
+                    RawOpContent::Future(FutureRawOpContent::Map(y)) => x.merge(y, &()),
+                    _ => unreachable!(),
+                },
+                FutureRawOpContent::List(x) => match _other {
+                    RawOpContent::Future(FutureRawOpContent::List(y)) => x.merge(y, &()),
+                    _ => unreachable!(),
+                },
+                FutureRawOpContent::Tree(x) => match _other {
+                    RawOpContent::Future(FutureRawOpContent::Tree(y)) => x.merge(y, &()),
+                    _ => unreachable!(),
+                },
                 FutureRawOpContent::Unknown { .. } => unreachable!(),
             },
-        }
+        };
     }
 }
 
 impl HasLength for InnerContent {
     fn content_len(&self) -> usize {
         match self {
-            InnerContent::List(list) => list.atom_len(),
-            InnerContent::Map(_) => 1,
-            InnerContent::Tree(_) => 1,
             InnerContent::Future(f) => match f {
+                FutureInnerContent::List(list) => list.atom_len(),
+                FutureInnerContent::Map(_) => 1,
+                FutureInnerContent::Tree(_) => 1,
                 FutureInnerContent::Unknown { op_len, .. } => *op_len,
             },
         }
@@ -219,12 +219,12 @@ impl HasLength for InnerContent {
 impl Sliceable for InnerContent {
     fn slice(&self, from: usize, to: usize) -> Self {
         match self {
-            a @ InnerContent::Map(_) => a.clone(),
-            a @ InnerContent::Tree(_) => a.clone(),
-            InnerContent::List(x) => InnerContent::List(x.slice(from, to)),
-            InnerContent::Future(f) => match f {
+            InnerContent::Future(f) => InnerContent::Future(match f {
+                a @ FutureInnerContent::Map(_) => a.clone(),
+                a @ FutureInnerContent::Tree(_) => a.clone(),
+                FutureInnerContent::List(x) => FutureInnerContent::List(x.slice(from, to)),
                 FutureInnerContent::Unknown { .. } => unreachable!(),
-            },
+            }),
         }
     }
 }
@@ -235,7 +235,10 @@ impl Mergable for InnerContent {
         Self: Sized,
     {
         match (self, other) {
-            (InnerContent::List(x), InnerContent::List(y)) => x.is_mergable(y, &()),
+            (
+                InnerContent::Future(FutureInnerContent::List(x)),
+                InnerContent::Future(FutureInnerContent::List(y)),
+            ) => x.is_mergable(y, &()),
             _ => false,
         }
     }
@@ -245,8 +248,8 @@ impl Mergable for InnerContent {
         Self: Sized,
     {
         match self {
-            InnerContent::List(x) => match _other {
-                InnerContent::List(y) => x.merge(y, &()),
+            InnerContent::Future(FutureInnerContent::List(x)) => match _other {
+                InnerContent::Future(FutureInnerContent::List(y)) => x.merge(y, &()),
                 _ => unreachable!(),
             },
             _ => unreachable!(),

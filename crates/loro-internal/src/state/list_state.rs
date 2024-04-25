@@ -11,7 +11,7 @@ use crate::{
     encoding::{EncodeMode, StateSnapshotDecodeContext, StateSnapshotEncoder},
     event::{Diff, Index, InternalDiff},
     handler::ValueOrHandler,
-    op::{ListSlice, Op, RawOp, RawOpContent},
+    op::{FutureRawOpContent, ListSlice, Op, RawOp, RawOpContent},
     txn::Transaction,
     DocState, LoroValue,
 };
@@ -406,24 +406,28 @@ impl ContainerState for ListState {
 
     fn apply_local_op(&mut self, op: &RawOp, _: &Op) -> LoroResult<()> {
         match &op.content {
-            RawOpContent::List(list) => match list {
-                crate::container::list::list_op::ListOp::Insert { slice, pos } => match slice {
-                    ListSlice::RawData(list) => match list {
-                        std::borrow::Cow::Borrowed(list) => {
-                            self.insert_batch(*pos, list.to_vec(), op.id_full());
-                        }
-                        std::borrow::Cow::Owned(list) => {
-                            self.insert_batch(*pos, list.clone(), op.id_full());
-                        }
+            RawOpContent::Future(f) => match f {
+                FutureRawOpContent::List(list) => match list {
+                    crate::container::list::list_op::ListOp::Insert { slice, pos } => match slice {
+                        ListSlice::RawData(list) => match list {
+                            std::borrow::Cow::Borrowed(list) => {
+                                self.insert_batch(*pos, list.to_vec(), op.id_full());
+                            }
+                            std::borrow::Cow::Owned(list) => {
+                                self.insert_batch(*pos, list.clone(), op.id_full());
+                            }
+                        },
+                        _ => unreachable!(),
                     },
-                    _ => unreachable!(),
+                    crate::container::list::list_op::ListOp::Delete(del) => {
+                        self.delete_range(del.span.to_urange());
+                    }
+                    crate::container::list::list_op::ListOp::StyleStart { .. } => unreachable!(),
+                    crate::container::list::list_op::ListOp::StyleEnd { .. } => unreachable!(),
                 },
-                crate::container::list::list_op::ListOp::Delete(del) => {
-                    self.delete_range(del.span.to_urange());
-                }
-                crate::container::list::list_op::ListOp::StyleStart { .. } => unreachable!(),
-                crate::container::list::list_op::ListOp::StyleEnd { .. } => unreachable!(),
+                _ => unreachable!(),
             },
+
             _ => unreachable!(),
         }
         Ok(())
@@ -481,7 +485,16 @@ impl ContainerState for ListState {
         assert_eq!(ctx.mode, EncodeMode::Snapshot);
         let mut index = 0;
         for op in ctx.ops {
-            let value = op.op.content.as_list().unwrap().as_insert().unwrap().0;
+            let value = op
+                .op
+                .content
+                .as_future()
+                .unwrap()
+                .as_list()
+                .unwrap()
+                .as_insert()
+                .unwrap()
+                .0;
             let list = ctx
                 .oplog
                 .arena
