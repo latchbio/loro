@@ -156,14 +156,16 @@ impl HasLength for RawOpContent {
 
 impl Sliceable for RawOpContent {
     fn slice(&self, from: usize, to: usize) -> Self {
-        match self {
-            // RawOpContent::Map(x) => RawOpContent::Map(x.slice(from, to)),
-            // RawOpContent::List(x) => RawOpContent::List(x.slice(from, to)),
-            // RawOpContent::Tree(x) => RawOpContent::Tree(x.slice(from, to)),
-            RawOpContent::Future(f) => match f {
-                FutureRawOpContent::Unknown { .. } => unreachable!(),
-            },
-        }
+        // TODO: op len == 1
+        self.clone()
+        // match self {
+        //     // RawOpContent::Map(x) => RawOpContent::Map(x.slice(from, to)),
+        //     // RawOpContent::List(x) => RawOpContent::List(x.slice(from, to)),
+        //     // RawOpContent::Tree(x) => RawOpContent::Tree(x.slice(from, to)),
+        //     RawOpContent::Future(f) => match f {
+        //         FutureRawOpContent::Unknown { .. } => ,
+        //     },
+        // }
     }
 }
 
@@ -218,14 +220,16 @@ impl HasLength for InnerContent {
 
 impl Sliceable for InnerContent {
     fn slice(&self, from: usize, to: usize) -> Self {
-        match self {
-            // a @ InnerContent::Map(_) => a.clone(),
-            // a @ InnerContent::Tree(_) => a.clone(),
-            // InnerContent::List(x) => InnerContent::List(x.slice(from, to)),
-            InnerContent::Future(f) => match f {
-                FutureInnerContent::Unknown { .. } => unreachable!(),
-            },
-        }
+        // TODO: op len == 1
+        self.clone()
+        // match self {
+        //     // a @ InnerContent::Map(_) => a.clone(),
+        //     // a @ InnerContent::Tree(_) => a.clone(),
+        //     // InnerContent::List(x) => InnerContent::List(x.slice(from, to)),
+        //     a @ InnerContent::Future(f) => match f {
+        //         FutureInnerContent::Unknown { .. } => unreachable!(),
+        //     },
+        // }
     }
 }
 
