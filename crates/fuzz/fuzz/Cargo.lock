@@ -212,6 +212,7 @@ dependencies = [
  "fxhash",
  "loro",
  "loro-internal",
+ "loro-unknown",
  "tabled",
 ]
 
@@ -378,6 +379,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "loro-common-unknown"
+version = "1.0.0"
+dependencies = [
+ "arbitrary",
+ "enum-as-inner 0.6.0",
+ "fxhash",
+ "loro-rle-unknown",
+ "nonmax",
+ "serde",
+ "serde_columnar",
+ "string_cache",
+ "thiserror",
+]
+
+[[package]]
 name = "loro-internal"
 version = "0.4.0"
 dependencies = [
@@ -411,8 +427,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "loro-internal-unknown"
+version = "1.0.0"
+dependencies = [
+ "append-only-bytes",
+ "arref",
+ "enum-as-inner 0.5.1",
+ "enum_dispatch",
+ "fxhash",
+ "generic-btree",
+ "getrandom",
+ "im",
+ "itertools",
+ "leb128",
+ "loro-common-unknown",
+ "loro-rle-unknown",
+ "md5",
+ "num",
+ "num-derive",
+ "num-traits",
+ "once_cell",
+ "postcard",
+ "serde",
+ "serde_columnar",
+ "serde_json",
+ "smallvec",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "loro-rle"
 version = "0.4.0"
+dependencies = [
+ "append-only-bytes",
+ "arref",
+ "enum-as-inner 0.6.0",
+ "fxhash",
+ "num",
+ "smallvec",
+]
+
+[[package]]
+name = "loro-rle-unknown"
+version = "1.0.0"
 dependencies = [
  "append-only-bytes",
  "arref",
@@ -427,6 +485,15 @@ name = "loro-thunderdome"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f3d053a135388e6b1df14e8af1212af5064746e9b87a06a345a7a779ee9695a"
+
+[[package]]
+name = "loro-unknown"
+version = "1.0.0"
+dependencies = [
+ "either",
+ "enum-as-inner 0.6.0",
+ "loro-internal-unknown",
+]
 
 [[package]]
 name = "md5"

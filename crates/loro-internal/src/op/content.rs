@@ -172,11 +172,13 @@ impl<'a> Mergable for RawOpContent<'a> {
     where
         Self: Sized,
     {
-        match (self.as_future().unwrap(), other.as_future().unwrap()) {
-            (FutureRawOpContent::Map(x), FutureRawOpContent::Map(y)) => x.is_mergable(y, &()),
-            (FutureRawOpContent::List(x), FutureRawOpContent::List(y)) => x.is_mergable(y, &()),
-            _ => false,
-        }
+        false
+
+        // match (self.as_future().unwrap(), other.as_future().unwrap()) {
+        //     (FutureRawOpContent::Map(x), FutureRawOpContent::Map(y)) => x.is_mergable(y, &()),
+        //     (FutureRawOpContent::List(x), FutureRawOpContent::List(y)) => x.is_mergable(y, &()),
+        //     _ => false,
+        // }
     }
 
     fn merge(&mut self, _other: &Self, _conf: &())
@@ -234,13 +236,14 @@ impl Mergable for InnerContent {
     where
         Self: Sized,
     {
-        match (self, other) {
-            (
-                InnerContent::Future(FutureInnerContent::List(x)),
-                InnerContent::Future(FutureInnerContent::List(y)),
-            ) => x.is_mergable(y, &()),
-            _ => false,
-        }
+        false
+        // match (self, other) {
+        //     (
+        //         InnerContent::Future(FutureInnerContent::List(x)),
+        //         InnerContent::Future(FutureInnerContent::List(y)),
+        //     ) => x.is_mergable(y, &()),
+        //     _ => false,
+        // }
     }
 
     fn merge(&mut self, _other: &Self, _conf: &())

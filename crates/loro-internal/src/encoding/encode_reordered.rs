@@ -385,6 +385,7 @@ fn extract_ops(
             arenas,
             prop,
         )?;
+
         let container = if cid.is_unknown() {
             OpContainer::ID(cid.clone())
         } else {
@@ -397,7 +398,6 @@ fn extract_ops(
             container,
             content,
         };
-
         if should_extract_ops_with_ids {
             ops.push(OpWithId {
                 peer,
@@ -1131,29 +1131,30 @@ mod encode {
 
     fn get_op_prop(op: &Op, registers: &mut EncodedRegisters) -> i32 {
         match &op.content {
-            // The future should not use register to encode prop
-            crate::op::InnerContent::Future(f) => match &f {
-                FutureInnerContent::List(list) => match list {
-                    crate::container::list::list_op::InnerListOp::Insert { pos, .. } => *pos as i32,
-                    crate::container::list::list_op::InnerListOp::InsertText { pos, .. } => {
-                        *pos as i32
-                    }
-                    crate::container::list::list_op::InnerListOp::Delete(span) => {
-                        span.span.pos as i32
-                    }
-                    crate::container::list::list_op::InnerListOp::StyleStart { start, .. } => {
-                        *start as i32
-                    }
-                    crate::container::list::list_op::InnerListOp::StyleEnd => 0,
-                },
-                // TODO:
-                FutureInnerContent::Map(map) => {
-                    let key = registers.key.register(&map.key);
-                    key as i32
-                }
-                FutureInnerContent::Tree(_) => 0,
-                FutureInnerContent::Unknown { .. } => 0,
-            },
+            // The future should not encode prop
+            crate::op::InnerContent::Future(f) => 0,
+            // match &f {
+            // FutureInnerContent::List(list) => match list {
+            //     crate::container::list::list_op::InnerListOp::Insert { pos, .. } => *pos as i32,
+            //     crate::container::list::list_op::InnerListOp::InsertText { pos, .. } => {
+            //         *pos as i32
+            //     }
+            //     crate::container::list::list_op::InnerListOp::Delete(span) => {
+            //         span.span.pos as i32
+            //     }
+            //     crate::container::list::list_op::InnerListOp::StyleStart { start, .. } => {
+            //         *start as i32
+            //     }
+            //     crate::container::list::list_op::InnerListOp::StyleEnd => 0,
+            // },
+            // // TODO:
+            // FutureInnerContent::Map(map) => {
+            //     let key = registers.key.register(&map.key);
+            //     key as i32
+            // }
+            // FutureInnerContent::Tree(_) => 0,
+            // FutureInnerContent::Unknown { .. } => 0,
+            // },
         }
     }
 
@@ -1225,8 +1226,11 @@ mod encode {
                 FutureInnerContent::Map(map) => {
                     assert_eq!(op.container.get_type(), ContainerType::Map);
                     match &map.value {
-                        Some(v) => Value::LoroValue(v.clone()),
-                        None => Value::DeleteOnce,
+                        Some(v) => Value::Future(FutureValue::FutureMap {
+                            key: map.key.clone(),
+                            value: v.clone(),
+                        }),
+                        None => Value::Future(FutureValue::DeleteKey(map.key.clone())),
                     }
                 }
                 FutureInnerContent::Tree(t) => {
@@ -1266,16 +1270,25 @@ fn decode_op(
                     pos: prop as u32,
                 })
             }
-            Value::DeleteSeq => {
-                let del_start = del_iter.next().unwrap()?;
-                let peer_idx = del_start.peer_idx;
-                let cnt = del_start.counter;
-                let len = del_start.len;
+            // Value::DeleteSeq => {
+            //     let del_start = del_iter.next().unwrap()?;
+            //     let peer_idx = del_start.peer_idx;
+            //     let cnt = del_start.counter;
+            //     let len = del_start.len;
+            //     FutureInnerContent::List(crate::container::list::list_op::InnerListOp::Delete(
+            //         DeleteSpanWithId::new(
+            //             ID::new(arenas.peer_ids.peer_ids[peer_idx], cnt as Counter),
+            //             prop as isize,
+            //             len,
+            //         ),
+            //     ))
+            // }
+            Value::Future(FutureValue::FutureDeleteSeq { peer, counter, len }) => {
                 FutureInnerContent::List(crate::container::list::list_op::InnerListOp::Delete(
                     DeleteSpanWithId::new(
-                        ID::new(arenas.peer_ids.peer_ids[peer_idx], cnt as Counter),
+                        ID::new(peer, counter as Counter),
                         prop as isize,
-                        len,
+                        len as isize,
                     ),
                 ))
             }
@@ -1291,23 +1304,26 @@ fn decode_op(
             Value::Null => {
                 FutureInnerContent::List(crate::container::list::list_op::InnerListOp::StyleEnd)
             }
+
             _ => unreachable!(),
         },
         ContainerType::Map => {
-            let key = arenas
-                .keys
-                .keys
-                .get(prop as usize)
-                .ok_or(LoroError::DecodeDataCorruptionError)?
-                .clone();
+            // let key = arenas
+            //     .keys
+            //     .keys
+            //     .get(prop as usize)
+            //     .ok_or(LoroError::DecodeDataCorruptionError)?
+            //     .clone();
             match value {
-                Value::DeleteOnce => {
+                Value::Future(FutureValue::DeleteKey(key)) => {
                     FutureInnerContent::Map(crate::container::map::MapSet { key, value: None })
                 }
-                Value::LoroValue(v) => FutureInnerContent::Map(crate::container::map::MapSet {
-                    key,
-                    value: Some(v.clone()),
-                }),
+                Value::Future(FutureValue::FutureMap { key, value }) => {
+                    FutureInnerContent::Map(crate::container::map::MapSet {
+                        key,
+                        value: Some(value),
+                    })
+                }
                 _ => unreachable!(),
             }
         }

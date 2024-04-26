@@ -39,6 +39,10 @@ pub enum ValueKind {
 pub enum FutureValueKind {
     // start from 17
     FutureDeleteSeq,
+    FutureMap,
+    DeleteKey,
+    LoroValue,
+    LoroValueArray,
     Unknown(u8),
 }
 
@@ -64,6 +68,10 @@ impl ValueKind {
             ValueKind::TreeMove => 16,
             ValueKind::Future(future_value_kind) => match future_value_kind {
                 FutureValueKind::FutureDeleteSeq { .. } => 17,
+                FutureValueKind::FutureMap => 18,
+                FutureValueKind::DeleteKey => 19,
+                FutureValueKind::LoroValue => 20,
+                FutureValueKind::LoroValueArray => 21,
                 FutureValueKind::Unknown(u8) => *u8 | 0x80,
             },
         }
@@ -90,6 +98,10 @@ impl ValueKind {
             15 => ValueKind::MarkStart,
             16 => ValueKind::TreeMove,
             17 => ValueKind::Future(FutureValueKind::FutureDeleteSeq),
+            18 => ValueKind::Future(FutureValueKind::FutureMap),
+            19 => ValueKind::Future(FutureValueKind::DeleteKey),
+            20 => ValueKind::Future(FutureValueKind::LoroValue),
+            21 => ValueKind::Future(FutureValueKind::LoroValueArray),
             _ => ValueKind::Future(FutureValueKind::Unknown(kind)),
         }
     }
@@ -120,16 +132,44 @@ pub enum Value<'a> {
 
 #[derive(Debug)]
 pub enum FutureValue<'a> {
-    FutureDeleteSeq { peer: u64, counter: i32, len: i64 },
+    FutureDeleteSeq {
+        peer: u64,
+        counter: i32,
+        len: i64,
+    },
+    FutureMap {
+        key: InternalString,
+        value: LoroValue,
+    },
+    DeleteKey(InternalString),
+    LoroValue(LoroValue),
+    LoroValueArray(Vec<LoroValue>),
     // The future value cannot depend on the arena for encoding.
-    Unknown { kind: u8, data: &'a [u8] },
+    Unknown {
+        kind: u8,
+        data: &'a [u8],
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OwnedFutureValue {
-    FutureDeleteSeq { peer: u64, counter: i32, len: i64 },
+    FutureDeleteSeq {
+        peer: u64,
+        counter: i32,
+        len: i64,
+    },
+    FutureMap {
+        key: InternalString,
+        value: LoroValue,
+    },
+    DeleteKey(InternalString),
+    LoroValue(LoroValue),
+    LoroValueArray(Vec<LoroValue>),
     // The future value cannot depend on the arena for encoding.
-    Unknown { kind: u8, data: Vec<u8> },
+    Unknown {
+        kind: u8,
+        data: Vec<u8>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -174,14 +214,14 @@ impl<'a> Value<'a> {
             Value::MarkStart { .. } => ValueKind::MarkStart,
             Value::Binary(_) => ValueKind::Binary,
             Value::TreeMove(..) => ValueKind::TreeMove,
-            Value::Future(value) => match value {
-                FutureValue::FutureDeleteSeq { .. } => {
-                    ValueKind::Future(FutureValueKind::FutureDeleteSeq)
-                }
-                FutureValue::Unknown { kind, data: _ } => {
-                    ValueKind::Future(FutureValueKind::Unknown(*kind))
-                }
-            },
+            Value::Future(value) => ValueKind::Future(match value {
+                FutureValue::FutureDeleteSeq { .. } => FutureValueKind::FutureDeleteSeq,
+                FutureValue::FutureMap { .. } => FutureValueKind::FutureMap,
+                FutureValue::DeleteKey(_) => FutureValueKind::DeleteKey,
+                FutureValue::LoroValue(_) => FutureValueKind::LoroValue,
+                FutureValue::LoroValueArray(_) => FutureValueKind::LoroValueArray,
+                FutureValue::Unknown { kind, data: _ } => FutureValueKind::Unknown(*kind),
+            }),
         }
     }
 
@@ -208,19 +248,26 @@ impl<'a> Value<'a> {
             OwnedValue::MarkStart(x) => Value::MarkStart(x.clone()),
             OwnedValue::Binary(x) => Value::Binary(x.as_slice()),
             OwnedValue::TreeMove(x) => Value::TreeMove(x.clone()),
-            OwnedValue::Future(value) => match value {
+            OwnedValue::Future(value) => Value::Future(match value {
                 OwnedFutureValue::FutureDeleteSeq { peer, counter, len } => {
-                    Value::Future(FutureValue::FutureDeleteSeq {
+                    FutureValue::FutureDeleteSeq {
                         peer: *peer,
                         counter: *counter,
                         len: *len,
-                    })
+                    }
                 }
-                OwnedFutureValue::Unknown { kind, data } => Value::Future(FutureValue::Unknown {
+                OwnedFutureValue::FutureMap { key, value } => FutureValue::FutureMap {
+                    key: key.clone(),
+                    value: value.clone(),
+                },
+                OwnedFutureValue::DeleteKey(key) => FutureValue::DeleteKey(key.clone()),
+                OwnedFutureValue::LoroValue(x) => FutureValue::LoroValue(x.clone()),
+                OwnedFutureValue::LoroValueArray(x) => FutureValue::LoroValueArray(x.clone()),
+                OwnedFutureValue::Unknown { kind, data } => FutureValue::Unknown {
                     kind: *kind,
                     data: data.as_slice(),
-                }),
-            },
+                },
+            }),
         }
     }
 
@@ -245,23 +292,29 @@ impl<'a> Value<'a> {
             Value::MarkStart(x) => OwnedValue::MarkStart(x),
             Value::Binary(x) => OwnedValue::Binary(x.to_owned()),
             Value::TreeMove(x) => OwnedValue::TreeMove(x),
-            Value::Future(value) => match value {
+            Value::Future(value) => OwnedValue::Future(match value {
                 FutureValue::FutureDeleteSeq { peer, counter, len } => {
-                    OwnedValue::Future(OwnedFutureValue::FutureDeleteSeq { peer, counter, len })
+                    OwnedFutureValue::FutureDeleteSeq { peer, counter, len }
                 }
-                FutureValue::Unknown { kind, data } => {
-                    OwnedValue::Future(OwnedFutureValue::Unknown {
-                        kind,
-                        data: data.to_owned(),
-                    })
-                }
-            },
+                FutureValue::FutureMap { key, value } => OwnedFutureValue::FutureMap {
+                    key: key.to_owned(),
+                    value,
+                },
+                FutureValue::DeleteKey(key) => OwnedFutureValue::DeleteKey(key),
+                FutureValue::LoroValue(x) => OwnedFutureValue::LoroValue(x),
+                FutureValue::LoroValueArray(x) => OwnedFutureValue::LoroValueArray(x),
+                FutureValue::Unknown { kind, data } => OwnedFutureValue::Unknown {
+                    kind,
+                    data: data.to_owned(),
+                },
+            }),
         }
     }
 
     fn decode_without_arena<'r: 'a>(
         future_kind: FutureValueKind,
         value_reader: &'r mut ValueReader,
+        id: ID,
     ) -> LoroResult<Self> {
         let bytes_length = value_reader.read_usize()?;
         let value = match future_kind {
@@ -270,6 +323,26 @@ impl<'a> Value<'a> {
                 counter: value_reader.read_i32()?,
                 len: value_reader.read_i64()?,
             },
+            FutureValueKind::FutureMap => FutureValue::FutureMap {
+                key: InternalString::from(value_reader.read_str()?),
+                value: value_reader.read_value_type_and_content_without_register(id)?,
+            },
+            FutureValueKind::DeleteKey => {
+                FutureValue::DeleteKey(InternalString::from(value_reader.read_str()?))
+            }
+            FutureValueKind::LoroValue => FutureValue::LoroValue(
+                value_reader.read_value_type_and_content_without_register(id)?,
+            ),
+            FutureValueKind::LoroValueArray => {
+                let len = value_reader.read_usize()?;
+                let mut ans = Vec::with_capacity(len);
+                for _ in 0..len {
+                    let loro_value =
+                        value_reader.read_value_type_and_content_without_register(id)?;
+                    ans.push(loro_value);
+                }
+                FutureValue::LoroValueArray(ans)
+            }
             FutureValueKind::Unknown(kind) => FutureValue::Unknown {
                 kind,
                 data: value_reader.take_bytes(bytes_length),
@@ -328,7 +401,7 @@ impl<'a> Value<'a> {
             }
             ValueKind::TreeMove => Value::TreeMove(value_reader.read_tree_move()?),
             ValueKind::Future(future_kind) => {
-                Self::decode_without_arena(future_kind, value_reader)?
+                Self::decode_without_arena(future_kind, value_reader, id)?
             }
         })
     }
@@ -347,6 +420,42 @@ impl<'a> Value<'a> {
 
                 (
                     FutureValueKind::FutureDeleteSeq,
+                    value_writer.write_binary(&writer.finish()),
+                )
+            }
+            FutureValue::FutureMap { key, value } => {
+                let mut writer = ValueWriter::new();
+
+                writer.write_str(&key);
+                writer.write_value_type_and_content_without_register(&value);
+
+                (
+                    FutureValueKind::FutureMap,
+                    value_writer.write_binary(&writer.finish()),
+                )
+            }
+            FutureValue::DeleteKey(key) => {
+                let mut writer = ValueWriter::new();
+                writer.write_str(&key);
+                (
+                    FutureValueKind::DeleteKey,
+                    value_writer.write_binary(&writer.finish()),
+                )
+            }
+            FutureValue::LoroValue(value) => (
+                FutureValueKind::LoroValue,
+                value_writer.write_value_type_and_content_without_register(&value),
+            ),
+            FutureValue::LoroValueArray(arr) => {
+                let mut writer = ValueWriter::new();
+
+                writer.write_usize(arr.len());
+                for value in arr {
+                    writer.write_value_type_and_content_without_register(&value);
+                }
+
+                (
+                    FutureValueKind::LoroValueArray,
                     value_writer.write_binary(&writer.finish()),
                 )
             }
@@ -474,6 +583,70 @@ impl<'a> ValueReader<'a> {
     ) -> LoroResult<LoroValue> {
         let kind = self.read_u8()?;
         self.read_value_content(ValueKind::from_u8(kind), keys, id)
+    }
+
+    pub fn read_value_type_and_content_without_register(
+        &mut self,
+        id: ID,
+    ) -> LoroResult<LoroValue> {
+        let kind = self.read_u8()?;
+        self.read_value_content_without_register(ValueKind::from_u8(kind), id)
+    }
+
+    pub fn read_value_content_without_register(
+        &mut self,
+        kind: ValueKind,
+        id: ID,
+    ) -> LoroResult<LoroValue> {
+        Ok(match kind {
+            ValueKind::Null => LoroValue::Null,
+            ValueKind::True => LoroValue::Bool(true),
+            ValueKind::False => LoroValue::Bool(false),
+            ValueKind::I64 => LoroValue::I64(self.read_i64()?),
+            ValueKind::F64 => LoroValue::Double(self.read_f64()?),
+            ValueKind::Str => LoroValue::String(Arc::new(self.read_str()?.to_owned())),
+            ValueKind::DeltaInt => LoroValue::I64(self.read_i64()?),
+            ValueKind::Binary => LoroValue::Binary(Arc::new(self.read_binary()?.to_owned())),
+            ValueKind::ContainerType => {
+                let u8 = self.read_u8()?;
+                let container_id = ContainerID::new_normal(
+                    id,
+                    ContainerType::try_from_u8(u8).unwrap_or(ContainerType::Unknown(u8)),
+                );
+
+                LoroValue::Container(container_id)
+            }
+            ValueKind::Array => unreachable!(),
+            ValueKind::Map => unreachable!(),
+            ValueKind::LoroValue => unreachable!(),
+            ValueKind::LoroValueArray => unreachable!(),
+            ValueKind::DeleteOnce => unreachable!(),
+            ValueKind::DeleteSeq => unreachable!(),
+            ValueKind::MarkStart => unreachable!(),
+            ValueKind::TreeMove => unreachable!(),
+            ValueKind::Future(f) => {
+                let _bytes_length = self.read_usize()?;
+                match f {
+                    FutureValueKind::FutureDeleteSeq => unreachable!(),
+                    FutureValueKind::FutureMap => unreachable!(),
+                    FutureValueKind::DeleteKey => unreachable!(),
+                    FutureValueKind::LoroValue => {
+                        self.recursive_read_value_type_and_content_without_register(id)?
+                    }
+                    FutureValueKind::LoroValueArray => {
+                        let len = self.read_usize()?;
+                        let mut ans = Vec::with_capacity(len);
+                        for _ in 0..len {
+                            let loro_value =
+                                self.recursive_read_value_type_and_content_without_register(id)?;
+                            ans.push(loro_value);
+                        }
+                        ans.into()
+                    }
+                    FutureValueKind::Unknown(_) => unreachable!(),
+                }
+            }
+        })
     }
 
     pub fn read_value_content(
@@ -830,6 +1003,185 @@ impl<'a> ValueReader<'a> {
             parent_cnt,
         })
     }
+
+    fn recursive_read_value_type_and_content_without_register(
+        &mut self,
+        id: ID,
+    ) -> LoroResult<LoroValue> {
+        #[derive(Debug)]
+        enum Task {
+            Init,
+            ReadList {
+                left: usize,
+                vec: Vec<LoroValue>,
+                key_or_index: KeyOrIndex,
+            },
+            ReadMap {
+                left: usize,
+                map: FxHashMap<String, LoroValue>,
+                key_or_index: KeyOrIndex,
+            },
+        }
+        #[derive(Debug, Clone, EnumAsInner)]
+        enum KeyOrIndex {
+            Key(String),
+            Index(usize),
+        }
+        impl Task {
+            fn should_read(&self) -> bool {
+                !matches!(
+                    self,
+                    Self::ReadList { left: 0, .. } | Self::ReadMap { left: 0, .. }
+                )
+            }
+
+            fn key_idx(&self) -> KeyOrIndex {
+                match self {
+                    Self::ReadList { key_or_index, .. } => key_or_index.clone(),
+                    Self::ReadMap { key_or_index, .. } => key_or_index.clone(),
+                    _ => unreachable!(),
+                }
+            }
+
+            fn into_value(self) -> LoroValue {
+                match self {
+                    Self::ReadList { vec, .. } => vec.into(),
+                    Self::ReadMap { map, .. } => map.into(),
+                    _ => unreachable!(),
+                }
+            }
+        }
+        let mut stack = vec![Task::Init];
+        while let Some(mut task) = stack.pop() {
+            if task.should_read() {
+                let key = if matches!(task, Task::ReadMap { .. }) {
+                    KeyOrIndex::Key(self.read_str()?.to_string())
+                } else {
+                    KeyOrIndex::Index(0)
+                };
+                let kind = self.read_u8()?;
+                let kind = ValueKind::from_u8(kind);
+                let value = match kind {
+                    ValueKind::Null => LoroValue::Null,
+                    ValueKind::True => LoroValue::Bool(true),
+                    ValueKind::False => LoroValue::Bool(false),
+                    ValueKind::I64 => LoroValue::I64(self.read_i64()?),
+                    ValueKind::F64 => LoroValue::Double(self.read_f64()?),
+                    ValueKind::Str => LoroValue::String(Arc::new(self.read_str()?.to_owned())),
+                    ValueKind::DeltaInt => LoroValue::I64(self.read_i64()?),
+                    ValueKind::LoroValueArray => {
+                        let len = self.read_usize()?;
+                        if len > MAX_COLLECTION_SIZE {
+                            return Err(LoroError::DecodeDataCorruptionError);
+                        }
+
+                        let ans = Vec::with_capacity(len);
+                        stack.push(task);
+                        stack.push(Task::ReadList {
+                            left: len,
+                            vec: ans,
+                            key_or_index: key,
+                        });
+                        continue;
+                    }
+                    ValueKind::Map => {
+                        let len = self.read_usize()?;
+                        if len > MAX_COLLECTION_SIZE {
+                            return Err(LoroError::DecodeDataCorruptionError);
+                        }
+
+                        let ans = FxHashMap::with_capacity_and_hasher(len, Default::default());
+                        stack.push(task);
+                        stack.push(Task::ReadMap {
+                            left: len,
+                            map: ans,
+                            key_or_index: key,
+                        });
+                        continue;
+                    }
+                    ValueKind::Binary => {
+                        LoroValue::Binary(Arc::new(self.read_binary()?.to_owned()))
+                    }
+                    ValueKind::ContainerType => {
+                        let u8 = self.read_u8()?;
+                        let container_id = ContainerID::new_normal(
+                            id,
+                            ContainerType::try_from_u8(u8).unwrap_or(ContainerType::Unknown(u8)),
+                        );
+
+                        LoroValue::Container(container_id)
+                    }
+                    a => unreachable!("Unexpected value kind {:?}", a),
+                };
+
+                task = match task {
+                    Task::Init => {
+                        return Ok(value);
+                    }
+                    Task::ReadList {
+                        mut left,
+                        mut vec,
+                        key_or_index,
+                    } => {
+                        left -= 1;
+                        vec.push(value);
+                        let task = Task::ReadList {
+                            left,
+                            vec,
+                            key_or_index,
+                        };
+                        if left != 0 {
+                            stack.push(task);
+                            continue;
+                        }
+
+                        task
+                    }
+                    Task::ReadMap {
+                        mut left,
+                        mut map,
+                        key_or_index,
+                    } => {
+                        left -= 1;
+                        map.insert(key_or_index.as_key().unwrap().to_string(), value);
+                        let task = Task::ReadMap {
+                            left,
+                            map,
+                            key_or_index,
+                        };
+                        if left != 0 {
+                            stack.push(task);
+                            continue;
+                        }
+                        task
+                    }
+                };
+            }
+
+            let key_index = task.key_idx();
+            let value = task.into_value();
+            if let Some(last) = stack.last_mut() {
+                match last {
+                    Task::Init => {
+                        return Ok(value);
+                    }
+                    Task::ReadList { left, vec, .. } => {
+                        *left -= 1;
+                        vec.push(value);
+                    }
+                    Task::ReadMap { left, map, .. } => {
+                        *left -= 1;
+                        let key = key_index.as_key().unwrap().to_string();
+                        map.insert(key, value);
+                    }
+                }
+            } else {
+                return Ok(value);
+            }
+        }
+
+        unreachable!();
+    }
 }
 
 impl ValueWriter {
@@ -992,6 +1344,52 @@ impl ValueWriter {
 
     pub(crate) fn finish(self) -> Vec<u8> {
         self.buffer
+    }
+
+    fn write_value_type_and_content_without_register(&mut self, value: &LoroValue) -> usize {
+        let len = self.write_u8(
+            match get_loro_value_kind(value) {
+                ValueKind::LoroValueArray => ValueKind::Future(FutureValueKind::LoroValueArray),
+                ValueKind::LoroValue => ValueKind::Future(FutureValueKind::LoroValue),
+                a => a,
+            }
+            .to_u8(),
+        );
+        let (_, l) = self.write_value_content_without_register(value);
+        len + l
+    }
+
+    fn write_value_content_without_register(&mut self, value: &LoroValue) -> (ValueKind, usize) {
+        match value {
+            LoroValue::Null => (ValueKind::Null, 0),
+            LoroValue::Bool(true) => (ValueKind::True, 0),
+            LoroValue::Bool(false) => (ValueKind::False, 0),
+            LoroValue::I64(value) => (ValueKind::I64, self.write_i64(*value)),
+            LoroValue::Double(value) => (ValueKind::F64, self.write_f64(*value)),
+            LoroValue::String(value) => (ValueKind::Str, self.write_str(value)),
+            LoroValue::List(value) => {
+                let mut len = self.write_usize(value.len());
+                for value in value.iter() {
+                    let l = self.write_value_type_and_content_without_register(value);
+                    len += l;
+                }
+                (ValueKind::Array, len)
+            }
+            LoroValue::Map(value) => {
+                let mut len = self.write_usize(value.len());
+                for (key, value) in value.iter() {
+                    len += self.write_str(key);
+                    let l = self.write_value_type_and_content_without_register(value);
+                    len += l;
+                }
+                (ValueKind::Map, len)
+            }
+            LoroValue::Binary(value) => (ValueKind::Binary, self.write_binary(value)),
+            LoroValue::Container(c) => (
+                ValueKind::ContainerType,
+                self.write_u8(c.container_type().to_u8()),
+            ),
+        }
     }
 }
 

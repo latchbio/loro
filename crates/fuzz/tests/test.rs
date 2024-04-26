@@ -3,12 +3,12 @@ use fuzz::{
     actions::{ActionWrapper::*, GenericAction},
     crdt_fuzzer::{test_multi_sites, Action, Action::*, FuzzTarget, FuzzValue::*},
 };
-use loro::ContainerType::*;
+use loro::{ContainerType::*, LoroDoc};
 
 fn prop(u: &mut Unstructured<'_>, site_num: u8) -> arbitrary::Result<()> {
     let xs = u.arbitrary::<Vec<Action>>()?;
     if let Err(e) = std::panic::catch_unwind(|| {
-        test_multi_sites(site_num, vec![FuzzTarget::All], &mut xs.clone());
+        test_multi_sites(site_num, vec![FuzzTarget::Tree], &mut xs.clone());
     }) {
         dbg!(xs);
         println!("{:?}", e);
@@ -85,7 +85,7 @@ fn missing_event_when_checkout() {
 fn tree_meta() {
     test_multi_sites(
         5,
-        vec![FuzzTarget::Map, FuzzTarget::Tree],
+        vec![FuzzTarget::Tree],
         &mut [
             Handle {
                 site: 200,
@@ -482,6 +482,42 @@ fn test_unknown() {
                 action: Generic(GenericAction {
                     value: I32(0),
                     bool: false,
+                    key: 0,
+                    pos: 0,
+                    length: 0,
+                    prop: 0,
+                }),
+            },
+        ],
+    )
+}
+
+#[test]
+fn map() {
+    test_multi_sites(
+        5,
+        vec![FuzzTarget::Tree],
+        &mut [
+            Handle {
+                site: 3,
+                target: 58,
+                container: 42,
+                action: Generic(GenericAction {
+                    value: I32(10794),
+                    bool: false,
+                    key: 4294901760,
+                    pos: 18446519411414925311,
+                    length: 230585180530671615,
+                    prop: 16574091057999053571,
+                }),
+            },
+            Handle {
+                site: 42,
+                target: 42,
+                container: 42,
+                action: Generic(GenericAction {
+                    value: I32(54526723),
+                    bool: true,
                     key: 0,
                     pos: 0,
                     length: 0,

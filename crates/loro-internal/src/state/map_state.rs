@@ -162,7 +162,6 @@ impl ContainerState for MapState {
         for v in self.map.values() {
             encoder.encode_op(v.idlp().into(), || unimplemented!());
         }
-
         Default::default()
     }
 
@@ -175,7 +174,6 @@ impl ContainerState for MapState {
                 1,
                 "MapState::from_snapshot_ops: op.atom_len() != 1"
             );
-
             let content = op.op.content.as_future().unwrap().as_map().unwrap();
             self.map.insert(
                 content.key.clone(),

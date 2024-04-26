@@ -5,7 +5,7 @@ use fxhash::FxHashSet;
 use loro::{ContainerType, Frontiers, LoroDoc};
 use tabled::TableIteratorExt;
 
-use crate::array_mut_ref;
+use crate::{actor::assert_value_eq, array_mut_ref};
 
 pub use super::actions::Action;
 use super::actor::Actor;
@@ -140,7 +140,7 @@ impl CRDTFuzzer {
 
         let loro2 = LoroDoc::new();
         loro2.import(&unknown_loro.export_snapshot()).unwrap();
-        assert_eq!(loro.get_deep_value(), loro2.get_deep_value());
+        assert_value_eq(&loro.get_deep_value(), &loro2.get_deep_value());
 
         let loro = &self.actors[0].loro;
         loro.attach();
@@ -153,7 +153,30 @@ impl CRDTFuzzer {
         loro2
             .import(&unknown_loro.export_from(&Default::default()))
             .unwrap();
-        assert_eq!(loro.get_deep_value(), loro2.get_deep_value());
+        assert_value_eq(&loro.get_deep_value(), &loro2.get_deep_value());
+
+        let loro = &self.actors[0].loro;
+        loro.attach();
+        let unknown_loro = loro_unknown::LoroDoc::new();
+        unknown_loro.import(&loro.export_snapshot()).unwrap();
+
+        let loro2 = LoroDoc::new();
+        loro2
+            .import(&unknown_loro.export_from(&Default::default()))
+            .unwrap();
+
+        assert_value_eq(&loro.get_deep_value(), &loro2.get_deep_value());
+
+        let loro = &self.actors[0].loro;
+        loro.attach();
+        let unknown_loro = loro_unknown::LoroDoc::new();
+        unknown_loro
+            .import(&loro.export_from(&Default::default()))
+            .unwrap();
+
+        let loro2 = LoroDoc::new();
+        loro2.import(&unknown_loro.export_snapshot()).unwrap();
+        assert_value_eq(&loro.get_deep_value(), &loro2.get_deep_value());
     }
 
     fn check_equal(&mut self) {

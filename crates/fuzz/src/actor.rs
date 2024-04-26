@@ -186,7 +186,7 @@ pub trait ActorTrait {
 }
 
 #[allow(unused)]
-fn assert_value_eq(a: &LoroValue, b: &LoroValue) {
+pub fn assert_value_eq(a: &LoroValue, b: &LoroValue) {
     match (a, b) {
         (LoroValue::Map(a), LoroValue::Map(b)) => {
             for (k, v) in a.iter() {
