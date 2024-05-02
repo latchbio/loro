@@ -25,6 +25,7 @@ use loro_common::{HasCounter, HasId, IdLp, IdSpan};
 use rle::{HasLength, RleCollection, RlePush, RleVec, Sliceable};
 use smallvec::SmallVec;
 
+// TODO: Trim
 type ClientChanges = FxHashMap<PeerID, Vec<Change>>;
 pub use self::dag::FrontiersNotIncluded;
 use self::iter::MergedChangeIter;
@@ -61,6 +62,7 @@ pub struct OpLog {
 /// It's faster to answer the question like what's the LCA version
 #[derive(Debug, Clone, Default)]
 pub struct AppDag {
+    // TODO: Trim
     pub(crate) map: FxHashMap<PeerID, Vec<AppDagNode>>,
     pub(crate) frontiers: Frontiers,
     pub(crate) vv: VersionVector,

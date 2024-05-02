@@ -55,6 +55,7 @@ pub(crate) trait Dag: Debug {
     fn vv(&self) -> VersionVector;
 }
 
+// TODO: Trim, lots of methods here may not be successful
 pub(crate) trait DagUtils: Dag {
     fn find_common_ancestor(&self, a_id: &[ID], b_id: &[ID]) -> Frontiers;
     /// Slow, should probably only use on dev

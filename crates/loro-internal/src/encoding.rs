@@ -1,3 +1,4 @@
+// TODO: Trim, need to provide an encoding schema that only contains state but not history
 mod encode_reordered;
 
 use crate::op::OpWithId;

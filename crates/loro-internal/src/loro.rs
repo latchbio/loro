@@ -396,6 +396,7 @@ impl LoroDoc {
         ans
     }
 
+    // TODO: Trim, may need to return whether the import is successfully applied on the state
     #[inline(always)]
     #[instrument(skip_all)]
     pub fn import(&self, bytes: &[u8]) -> Result<(), LoroError> {

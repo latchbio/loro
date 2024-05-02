@@ -19,6 +19,7 @@ use crate::{
     VersionVector,
 };
 
+// TODO: Trim
 #[derive(Debug, Clone)]
 pub(crate) struct OpGroups {
     arena: SharedArena,
