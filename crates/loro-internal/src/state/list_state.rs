@@ -154,6 +154,14 @@ impl ListState {
         }
     }
 
+    pub fn contains_child_container(&self, id: &ContainerID) -> bool {
+        let Some(&leaf) = self.child_container_to_leaf.get(id) else {
+            return false;
+        };
+
+        self.list.get_elem(leaf).is_some()
+    }
+
     pub fn get_child_container_index(&self, id: &ContainerID) -> Option<usize> {
         let leaf = *self.child_container_to_leaf.get(id)?;
         self.list.get_elem(leaf)?;
@@ -419,8 +427,6 @@ impl ContainerState for ListState {
 
     fn apply_local_op(&mut self, op: &RawOp, _: &Op) -> LoroResult<()> {
         match &op.content {
-            RawOpContent::Map(_) => unreachable!(),
-            RawOpContent::Tree(_) => unreachable!(),
             RawOpContent::List(list) => match list {
                 ListOp::Insert { slice, pos } => match slice {
                     ListSlice::RawData(list) => match list {
@@ -445,6 +451,7 @@ impl ContainerState for ListState {
                     unreachable!()
                 }
             },
+            _ => unreachable!(),
         }
         Ok(())
     }
@@ -471,6 +478,10 @@ impl ContainerState for ListState {
 
     fn get_child_index(&self, id: &ContainerID) -> Option<Index> {
         self.get_child_container_index(id).map(Index::Seq)
+    }
+
+    fn contains_child(&self, id: &ContainerID) -> bool {
+        self.contains_child_container(id)
     }
 
     fn get_child_containers(&self) -> Vec<ContainerID> {

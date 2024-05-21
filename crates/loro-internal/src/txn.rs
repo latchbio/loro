@@ -59,6 +59,26 @@ pub struct Transaction {
     timestamp: Option<Timestamp>,
 }
 
+impl std::fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transaction")
+            .field("peer", &self.peer)
+            .field("origin", &self.origin)
+            .field("start_counter", &self.start_counter)
+            .field("next_counter", &self.next_counter)
+            .field("start_lamport", &self.start_lamport)
+            .field("next_lamport", &self.next_lamport)
+            .field("frontiers", &self.frontiers)
+            .field("local_ops", &self.local_ops)
+            .field("event_hints", &self.event_hints)
+            .field("arena", &self.arena)
+            .field("finished", &self.finished)
+            .field("on_commit", &self.on_commit.is_some())
+            .field("timestamp", &self.timestamp)
+            .finish()
+    }
+}
+
 /// We can infer local events directly from the local behavior. This enum is used to
 /// record them, so that we can avoid recalculate them when we commit the transaction.
 ///
@@ -105,6 +125,8 @@ pub(super) enum EventHint {
     },
     Tree(TreeDiffItem),
     MarkEnd,
+    #[cfg(feature = "counter")]
+    Counter(i64),
 }
 
 impl generic_btree::rle::HasLength for EventHint {
@@ -122,6 +144,8 @@ impl generic_btree::rle::HasLength for EventHint {
             EventHint::MarkEnd => 1,
             EventHint::Move { .. } => 1,
             EventHint::SetList { .. } => 1,
+            #[cfg(feature = "counter")]
+            EventHint::Counter(_) => 1,
         }
     }
 }
@@ -677,6 +701,13 @@ fn change_to_diff(
             }
             EventHint::MarkEnd => {
                 // do nothing
+            }
+            #[cfg(feature = "counter")]
+            EventHint::Counter(diff) => {
+                ans.push(TxnContainerDiff {
+                    idx: op.container,
+                    diff: Diff::Counter(diff),
+                });
             }
         }
 

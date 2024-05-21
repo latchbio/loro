@@ -80,18 +80,17 @@ impl ResolvedMapValue {
 }
 
 impl MapDelta {
-    pub(crate) fn compose(&self, x: MapDelta) -> MapDelta {
-        let mut updated = self.updated.clone();
+    pub(crate) fn compose(mut self, x: MapDelta) -> MapDelta {
         for (k, v) in x.updated.into_iter() {
-            if let Some(old) = updated.get_mut(&k) {
+            if let Some(old) = self.updated.get_mut(&k) {
                 if &v > old {
                     *old = v;
                 }
             } else {
-                updated.insert(k, v);
+                self.updated.insert(k, v);
             }
         }
-        MapDelta { updated }
+        self
     }
 
     #[inline]
@@ -134,6 +133,14 @@ impl ResolvedMapDelta {
     pub fn with_entry(mut self, key: InternalString, map_value: ResolvedMapValue) -> Self {
         self.updated.insert(key, map_value);
         self
+    }
+
+    pub(crate) fn transform(&mut self, b: &ResolvedMapDelta, left_prior: bool) {
+        for (k, _) in b.updated.iter() {
+            if !left_prior {
+                self.updated.remove(k);
+            }
+        }
     }
 }
 

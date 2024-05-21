@@ -39,6 +39,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
+name = "anstyle"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8901269c6307e8d93993578286ac0edf7f195079ffff5ebdeea6a59ffb7e36bc"
+
+[[package]]
+name = "anyhow"
+version = "1.0.83"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25bdb32cbbdce2b519a9cd7df3a678443100e265d5e25ca763b7572a5104f5f3"
+
+[[package]]
 name = "append-only-bytes"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -128,7 +140,7 @@ dependencies = [
  "arbitrary",
  "enum-as-inner 0.5.1",
  "flate2",
- "loro-common",
+ "loro-common 0.5.1",
  "rand",
  "serde_json",
 ]
@@ -162,6 +174,12 @@ checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
 dependencies = [
  "typenum",
 ]
+
+[[package]]
+name = "bitmaps"
+version = "3.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1d084b0137aaa901caf9f1e8b21daa6aa24d41cd806e111335541eff9683bd6"
 
 [[package]]
 name = "bumpalo"
@@ -251,9 +269,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71655c45cb9845d3270c9d6df84ebe72b4dad3c2ba3f7023ad47c144e4e473a5"
 dependencies = [
  "bitflags",
- "clap_lex",
+ "clap_lex 0.2.4",
  "indexmap",
  "textwrap",
+]
+
+[[package]]
+name = "clap"
+version = "4.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90bc066a67923782aa8515dbaea16946c5bcc5addbd668bb80af688e53e548a0"
+dependencies = [
+ "clap_builder",
+]
+
+[[package]]
+name = "clap_builder"
+version = "4.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae129e2e766ae0ec03484e609954119f123cc1fe650337e155d03b022f24f7b4"
+dependencies = [
+ "anstyle",
+ "clap_lex 0.7.0",
 ]
 
 [[package]]
@@ -264,6 +301,12 @@ checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
 ]
+
+[[package]]
+name = "clap_lex"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 
 [[package]]
 name = "cobs"
@@ -316,11 +359,37 @@ dependencies = [
  "atty",
  "cast",
  "ciborium",
- "clap",
+ "clap 3.2.23",
  "criterion-plot",
  "itertools 0.10.5",
  "lazy_static",
  "num-traits",
+ "oorandom",
+ "plotters",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tinytemplate",
+ "walkdir",
+]
+
+[[package]]
+name = "criterion"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
+dependencies = [
+ "anes",
+ "cast",
+ "ciborium",
+ "clap 4.5.4",
+ "criterion-plot",
+ "is-terminal",
+ "itertools 0.10.5",
+ "num-traits",
+ "once_cell",
  "oorandom",
  "plotters",
  "rayon",
@@ -535,10 +604,10 @@ dependencies = [
  "arbitrary",
  "bench-utils",
  "color-backtrace",
- "criterion",
+ "criterion 0.4.0",
  "ctor 0.2.6",
  "flate2",
- "loro",
+ "loro 0.5.1",
  "serde_json",
  "tabled 0.15.0",
  "tracing",
@@ -570,6 +639,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "fractional_index"
+version = "0.1.0"
+dependencies = [
+ "criterion 0.5.1",
+ "fractional_index 2.0.1",
+ "imbl",
+ "rand",
+ "serde",
+ "smallvec",
+]
+
+[[package]]
+name = "fractional_index"
+version = "0.1.0"
+source = "git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125#0dade6bc0fb574a8190db2aa80c83a479f62e125"
+dependencies = [
+ "imbl",
+ "rand",
+ "serde",
+ "smallvec",
+]
+
+[[package]]
+name = "fractional_index"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1151a9f3ec0f115ddf899dd5baf57532c29b424ef4c63fb2f5636ba789dcbc4"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "fuzz"
 version = "0.1.0"
 dependencies = [
@@ -581,11 +682,14 @@ dependencies = [
  "enum-as-inner 0.5.1",
  "enum_dispatch",
  "fxhash",
- "loro",
- "loro-internal",
+ "itertools 0.12.1",
+ "loro 0.5.1",
+ "loro 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "loro-common 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
  "rand",
  "tabled 0.10.0",
  "tracing",
+ "tracing-chrome",
  "tracing-subscriber",
 ]
 
@@ -710,6 +814,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hermit-abi"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -744,12 +854,34 @@ version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0acd33ff0285af998aaf9b57342af478078f53492322fafc47450e09397e0e9"
 dependencies = [
- "bitmaps",
+ "bitmaps 2.1.0",
  "rand_core",
  "rand_xoshiro",
  "sized-chunks",
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "imbl"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc3be8d8cd36f33a46b1849f31f837c44d9fa87223baee3b4bd96b8f11df81eb"
+dependencies = [
+ "bitmaps 3.2.1",
+ "imbl-sized-chunks",
+ "rand_core",
+ "rand_xoshiro",
+ "version_check",
+]
+
+[[package]]
+name = "imbl-sized-chunks"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "144006fb58ed787dcae3f54575ff4349755b00ccc99f4b4873860b654be1ed63"
+dependencies = [
+ "bitmaps 3.2.1",
 ]
 
 [[package]]
@@ -772,6 +904,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "is-terminal"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f23ff5ef2b80d608d61efee834934d862cd92461afc0560dedf493e4c033738b"
+dependencies = [
+ "hermit-abi 0.3.9",
+ "libc",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -785,6 +928,15 @@ name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
 dependencies = [
  "either",
 ]
@@ -852,28 +1004,42 @@ dependencies = [
 
 [[package]]
 name = "loro"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
+ "anyhow",
  "ctor 0.2.6",
  "dev-utils",
  "either",
  "enum-as-inner 0.6.0",
  "generic-btree",
- "loro-delta",
- "loro-internal",
+ "loro-delta 0.5.1",
+ "loro-internal 0.5.1",
  "serde_json",
  "tracing",
 ]
 
 [[package]]
+name = "loro"
+version = "0.5.1"
+source = "git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125#0dade6bc0fb574a8190db2aa80c83a479f62e125"
+dependencies = [
+ "either",
+ "enum-as-inner 0.6.0",
+ "generic-btree",
+ "loro-delta 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "loro-internal 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "tracing",
+]
+
+[[package]]
 name = "loro-common"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "arbitrary",
  "enum-as-inner 0.6.0",
  "fxhash",
  "js-sys",
- "loro-rle",
+ "loro-rle 0.5.1",
  "nonmax",
  "serde",
  "serde_columnar",
@@ -883,12 +1049,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "loro-common"
+version = "0.5.1"
+source = "git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125#0dade6bc0fb574a8190db2aa80c83a479f62e125"
+dependencies = [
+ "arbitrary",
+ "enum-as-inner 0.6.0",
+ "fxhash",
+ "loro-rle 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "nonmax",
+ "serde",
+ "serde_columnar",
+ "string_cache",
+ "thiserror",
+]
+
+[[package]]
 name = "loro-delta"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "arrayvec",
  "color-backtrace",
- "criterion",
+ "criterion 0.4.0",
  "ctor 0.2.6",
  "enum-as-inner 0.5.1",
  "generic-btree",
@@ -899,8 +1081,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "loro-delta"
+version = "0.5.1"
+source = "git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125#0dade6bc0fb574a8190db2aa80c83a479f62e125"
+dependencies = [
+ "arrayvec",
+ "enum-as-inner 0.5.1",
+ "generic-btree",
+ "heapless 0.8.0",
+ "tracing",
+]
+
+[[package]]
 name = "loro-internal"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "append-only-bytes",
  "arbitrary",
@@ -908,22 +1102,24 @@ dependencies = [
  "arref",
  "base64",
  "bench-utils",
- "criterion",
+ "criterion 0.5.1",
  "ctor 0.1.26",
  "dev-utils",
  "dhat",
+ "either",
  "enum-as-inner 0.5.1",
  "enum_dispatch",
+ "fractional_index 0.1.0",
  "fxhash",
  "generic-btree",
  "getrandom",
  "im",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "js-sys",
  "leb128",
- "loro-common",
- "loro-delta",
- "loro-rle",
+ "loro-common 0.5.1",
+ "loro-delta 0.5.1",
+ "loro-rle 0.5.1",
  "md5",
  "miniz_oxide 0.7.1",
  "num",
@@ -948,8 +1144,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "loro-internal"
+version = "0.5.1"
+source = "git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125#0dade6bc0fb574a8190db2aa80c83a479f62e125"
+dependencies = [
+ "append-only-bytes",
+ "arref",
+ "either",
+ "enum-as-inner 0.5.1",
+ "enum_dispatch",
+ "fractional_index 0.1.0 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "fxhash",
+ "generic-btree",
+ "getrandom",
+ "im",
+ "itertools 0.12.1",
+ "leb128",
+ "loro-common 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "loro-delta 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "loro-rle 0.5.1 (git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125)",
+ "md5",
+ "num",
+ "num-derive",
+ "num-traits",
+ "once_cell",
+ "postcard",
+ "rand",
+ "serde",
+ "serde_columnar",
+ "serde_json",
+ "smallvec",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "loro-rle"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "append-only-bytes",
  "arref",
@@ -965,6 +1196,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "loro-rle"
+version = "0.5.1"
+source = "git+https://github.com/loro-dev/loro.git?rev=0dade6bc0fb574a8190db2aa80c83a479f62e125#0dade6bc0fb574a8190db2aa80c83a479f62e125"
+dependencies = [
+ "append-only-bytes",
+ "arref",
+ "enum-as-inner 0.6.0",
+ "fxhash",
+ "num",
+ "smallvec",
+]
+
+[[package]]
 name = "loro-thunderdome"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -977,13 +1221,14 @@ dependencies = [
  "console_error_panic_hook",
  "getrandom",
  "js-sys",
- "loro-internal",
- "loro-rle",
+ "loro-internal 0.5.1",
+ "loro-rle 0.5.1",
  "serde",
  "serde-wasm-bindgen",
  "tracing",
  "tracing-wasm",
  "wasm-bindgen",
+ "wasm-bindgen-derive",
 ]
 
 [[package]]
@@ -1667,15 +1912,15 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
 dependencies = [
- "bitmaps",
+ "bitmaps 2.1.0",
  "typenum",
 ]
 
 [[package]]
 name = "smallvec"
-version = "1.10.0"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
+checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 dependencies = [
  "serde",
 ]
@@ -2053,9 +2298,9 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.90"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1223296a201415c7fad14792dbefaace9bd52b62d33453ade1c5b5f07555406"
+checksum = "4be2531df63900aeb2bca0daaaddec08491ee64ceecbee5076636a3b026795a8"
 dependencies = [
  "cfg-if",
  "wasm-bindgen-macro",
@@ -2063,9 +2308,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.90"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcdc935b63408d58a32f8cc9738a0bffd8f05cc7c002086c6ef20b7312ad9dcd"
+checksum = "614d787b966d3989fa7bb98a654e369c762374fd3213d212cfc0251257e747da"
 dependencies = [
  "bumpalo",
  "log",
@@ -2077,10 +2322,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-bindgen-macro"
-version = "0.2.90"
+name = "wasm-bindgen-derive"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e4c238561b2d428924c49815533a8b9121c664599558a5d9ec51f8a1740a999"
+checksum = "c1ab6c8bffb3f89584781211283fb57337d6902faab6eaee38f336977bdf177d"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-derive-macro",
+]
+
+[[package]]
+name = "wasm-bindgen-derive-macro"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b87c28b31d27616bc69a891700ef0445d2cbaa0340fdacb145145256d5f5fcbb"
+dependencies = [
+ "proc-macro2 1.0.75",
+ "quote 1.0.35",
+ "syn 1.0.107",
+]
+
+[[package]]
+name = "wasm-bindgen-macro"
+version = "0.2.92"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1f8823de937b71b9460c0c34e25f3da88250760bec0ebac694b49997550d726"
 dependencies = [
  "quote 1.0.35",
  "wasm-bindgen-macro-support",
@@ -2088,9 +2355,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.90"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bae1abb6806dc1ad9e560ed242107c0f6c84335f1749dd4e8ddb012ebd5e25a7"
+checksum = "e94f17b526d0a461a191c78ea52bbce64071ed5c04c9ffe424dcb38f74171bb7"
 dependencies = [
  "proc-macro2 1.0.75",
  "quote 1.0.35",
@@ -2101,9 +2368,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.90"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d91413b1c31d7539ba5ef2451af3f0b833a005eb27a631cec32bc0635a8602b"
+checksum = "af190c94f2773fdb3729c55b007a722abb5384da03bc0986df4c289bf5567e96"
 
 [[package]]
 name = "web-sys"
@@ -2177,6 +2444,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "677d2418bec65e3338edb076e806bc1ec15693c5d0104683f2efe857f61056a9"
 dependencies = [
  "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "windows-sys"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+dependencies = [
+ "windows-targets 0.52.4",
 ]
 
 [[package]]

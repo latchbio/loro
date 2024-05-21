@@ -47,6 +47,7 @@ pub struct SharedArena {
     inner: Arc<InnerSharedArena>,
 }
 
+#[derive(Debug)]
 pub struct StrAllocResult {
     /// unicode start
     pub start: usize,
@@ -356,6 +357,20 @@ impl SharedArena {
                 counter,
                 container,
                 content: crate::op::InnerContent::Tree(tree),
+            },
+            #[cfg(feature = "counter")]
+            crate::op::RawOpContent::Counter(c) => Op {
+                counter,
+                container,
+                content: crate::op::InnerContent::Future(crate::op::FutureInnerContent::Counter(c)),
+            },
+            crate::op::RawOpContent::Unknown { prop, value } => Op {
+                counter,
+                container,
+                content: crate::op::InnerContent::Future(crate::op::FutureInnerContent::Unknown {
+                    prop,
+                    value,
+                }),
             },
         }
     }

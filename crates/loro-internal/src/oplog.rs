@@ -16,7 +16,7 @@ use crate::encoding::ParsedHeaderAndBody;
 use crate::encoding::{decode_oplog, encode_oplog, EncodeMode};
 use crate::group::OpGroups;
 use crate::id::{Counter, PeerID, ID};
-use crate::op::{ListSlice, Op, RawOpContent, RemoteOp, RichOp};
+use crate::op::{FutureInnerContent, ListSlice, Op, RawOpContent, RemoteOp, RichOp};
 use crate::span::{HasCounterSpan, HasIdSpan, HasLamportSpan};
 use crate::version::{Frontiers, ImVersionVector, VersionVector};
 use crate::LoroError;
@@ -530,6 +530,16 @@ impl OpLog {
         None
     }
 
+    pub fn get_deps_of(&self, id: ID) -> Option<Frontiers> {
+        self.get_change_at(id).map(|c| {
+            if c.id.counter == id.counter {
+                c.deps.clone()
+            } else {
+                Frontiers::from_id(id.inc(-1))
+            }
+        })
+    }
+
     pub fn get_remote_change_at(&self, id: ID) -> Option<Change<RemoteOp>> {
         let change = self.get_change_at(id)?;
         Some(self.convert_change_to_remote(change))
@@ -580,8 +590,7 @@ impl OpLog {
                             pos: *pos,
                         }))
                     }
-                    loro_common::ContainerType::Map => unreachable!(),
-                    loro_common::ContainerType::Tree => unreachable!(),
+                    _ => unreachable!(),
                 },
                 list_op::InnerListOp::InsertText {
                     slice,
@@ -598,12 +607,7 @@ impl OpLog {
                             pos: *pos as usize,
                         }));
                     }
-                    loro_common::ContainerType::List
-                    | loro_common::ContainerType::MovableList
-                    | loro_common::ContainerType::Map
-                    | loro_common::ContainerType::Tree => {
-                        unreachable!()
-                    }
+                    _ => unreachable!(),
                 },
                 list_op::InnerListOp::Delete(del) => {
                     contents.push(RawOpContent::List(list_op::ListOp::Delete(*del)))
@@ -645,7 +649,19 @@ impl OpLog {
                     value,
                 }))
             }
-            crate::op::InnerContent::Tree(tree) => contents.push(RawOpContent::Tree(*tree)),
+            crate::op::InnerContent::Tree(tree) => contents.push(RawOpContent::Tree(tree.clone())),
+            crate::op::InnerContent::Future(f) => match f {
+                #[cfg(feature = "counter")]
+                crate::op::FutureInnerContent::Counter(c) => {
+                    contents.push(RawOpContent::Counter(*c))
+                }
+                FutureInnerContent::Unknown { prop, value } => {
+                    contents.push(crate::op::RawOpContent::Unknown {
+                        prop: *prop,
+                        value: value.clone(),
+                    })
+                }
+            },
         };
 
         let mut ans = SmallVec::with_capacity(contents.len());
@@ -927,6 +943,33 @@ impl OpLog {
     pub(crate) fn get_op(&self, id: ID) -> Option<&Op> {
         let change = self.get_change_at(id)?;
         change.ops.get_by_atom_index(id.counter).map(|x| x.element)
+    }
+
+    pub(crate) fn split_span_based_on_deps(&self, id_span: IdSpan) -> Vec<(IdSpan, Frontiers)> {
+        let peer = id_span.peer;
+        let mut counter = id_span.counter.min();
+        let span_end = id_span.counter.norm_end();
+        let mut ans = Vec::new();
+
+        while counter < span_end {
+            let id = ID::new(peer, counter);
+            let node = self.dag.get(id).unwrap();
+
+            let f = if node.cnt == counter {
+                node.deps.clone()
+            } else if counter > 0 {
+                id.inc(-1).into()
+            } else {
+                unreachable!()
+            };
+
+            let cur_end = node.cnt + node.len as Counter;
+            let len = cur_end.min(span_end) - counter;
+            ans.push((id.to_span(len as usize), f));
+            counter += len;
+        }
+
+        ans
     }
 }
 

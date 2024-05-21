@@ -9,13 +9,18 @@ pub type LoroResult<T> = Result<T, LoroError>;
 pub enum LoroError {
     #[error("Context's client_id({found:?}) does not match Container's client_id({expected:?})")]
     UnmatchedContext { expected: PeerID, found: PeerID },
-    #[error("Decode version vector error. Please provide correct version.")]
+    #[error("Decode error: Version vector error. Please provide correct version.")]
     DecodeVersionVectorError,
-    #[error("Decode error ({0})")]
+    #[error("Decode error: ({0})")]
     DecodeError(Box<str>),
-    #[error("Checksum mismatch. The data is corrupted.")]
+    #[error(
+        // This should not happen after v1.0.0
+        "Decode error: The data is either corrupted or originates from an older version that is incompatible due to a breaking change."
+    )]
     DecodeDataCorruptionError,
-    #[error("Encountered an incompatible Encoding version \"{0}\". Loro's encoding is backward compatible but not forward compatible. Please upgrade the version of Loro to support this version of the exported data.")]
+    #[error("Decode error: Checksum mismatch. The data is corrupted.")]
+    DecodeChecksumMismatchError,
+    #[error("Decode error: Encoding version \"{0}\" is incompatible. Loro's encoding is backward compatible but not forward compatible. Please upgrade the version of Loro to support this version of the exported data.")]
     IncompatibleFutureEncodingError(usize),
     #[error("Js error ({0})")]
     JsError(Box<str>),
@@ -31,7 +36,7 @@ pub enum LoroError {
     OutOfBound { pos: usize, len: usize },
     #[error("Every op id should be unique. ID {id} has been used. You should use a new PeerID to edit the content. ")]
     UsedOpID { id: ID },
-    #[error("Movable Tree Error")]
+    #[error("Movable Tree Error: {0}")]
     TreeError(#[from] LoroTreeError),
     #[error("Invalid argument ({0})")]
     ArgErr(Box<str>),
@@ -42,15 +47,21 @@ pub enum LoroError {
     #[error("Unknown Error ({0})")]
     Unknown(Box<str>),
     #[error("The given ID ({0}) is not contained by the doc")]
-    InvalidFrontierIdNotFound(ID),
+    FrontiersNotFound(ID),
     #[error("Cannot import when the doc is in a transaction")]
     ImportWhenInTxn,
     #[error("The given method ({method}) is not allowed when the container is detached. You should insert the container to the doc first.")]
-    MisuseDettachedContainer { method: &'static str },
+    MisuseDetachedContainer { method: &'static str },
     #[error("Not implemented: {0}")]
     NotImplemented(&'static str),
     #[error("Reattach a container that is already attached")]
     ReattachAttachedContainer,
+    #[error("Edit is not allowed when the doc is in the detached mode.")]
+    EditWhenDetached,
+    #[error("The given ID ({0}) is not contained by the doc")]
+    UndoInvalidIdSpan(ID),
+    #[error("PeerID cannot be changed. Expected: {expected:?}, Actual: {actual:?}")]
+    UndoWithDifferentPeerId { expected: PeerID, actual: PeerID },
 }
 
 #[derive(Error, Debug)]
@@ -61,6 +72,8 @@ pub enum LoroTreeError {
     TreeNodeParentNotFound(TreeID),
     #[error("TreeID {0:?} doesn't exist")]
     TreeNodeNotExist(TreeID),
+    #[error("The index({index}) should be <= the length of children ({len})")]
+    IndexOutOfBound { len: usize, index: usize },
 }
 
 #[cfg(feature = "wasm")]

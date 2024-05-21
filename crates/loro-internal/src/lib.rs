@@ -5,6 +5,7 @@
 //!
 #![deny(clippy::undocumented_unsafe_blocks)]
 #![warn(rustdoc::broken_intra_doc_links)]
+#![warn(missing_debug_implementations)]
 
 pub mod arena;
 pub mod diff_calc;
@@ -13,11 +14,13 @@ pub use event::{ContainerDiff, DiffEvent, DocDiff, ListDiff, ListDiffInsertItem,
 pub use fxhash::FxHashMap;
 pub use handler::{
     BasicHandler, HandlerTrait, ListHandler, MapHandler, MovableListHandler, TextHandler,
-    TreeHandler,
+    TreeHandler, UnknownHandler,
 };
 pub use loro::LoroDoc;
+pub use loro_common;
 pub use oplog::OpLog;
 pub use state::DocState;
+pub use undo::UndoManager;
 pub mod awareness;
 pub mod cursor;
 pub mod loro;
@@ -52,6 +55,7 @@ pub use error::{LoroError, LoroResult};
 pub(crate) mod group;
 pub(crate) mod macros;
 pub(crate) mod state;
+pub(crate) mod undo;
 pub(crate) mod value;
 pub(crate) use id::{PeerID, ID};
 

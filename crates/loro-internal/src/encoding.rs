@@ -1,5 +1,8 @@
 // TODO: Trim, need to provide an encoding schema that only contains state but not history
+mod arena;
 mod encode_reordered;
+mod value;
+pub(crate) use value::OwnedValue;
 
 use crate::op::OpWithId;
 use crate::version::Frontiers;
@@ -171,7 +174,7 @@ impl ParsedHeaderAndBody<'_> {
     /// Return if the checksum is correct.
     fn check_checksum(&self) -> LoroResult<()> {
         if md5::compute(self.checksum_body).0 != self.checksum {
-            return Err(LoroError::DecodeDataCorruptionError);
+            return Err(LoroError::DecodeChecksumMismatchError);
         }
 
         Ok(())

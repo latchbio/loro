@@ -5,6 +5,7 @@ use enum_as_inner::EnumAsInner;
 
 use nonmax::{NonMaxI32, NonMaxU32};
 use serde::{Deserialize, Serialize};
+
 mod error;
 mod id;
 mod internal_string;
@@ -188,9 +189,22 @@ pub enum ContainerType {
     List,
     MovableList,
     Tree,
+    #[cfg(feature = "counter")]
+    Counter,
+    Unknown(u8),
 }
 
 impl ContainerType {
+    #[cfg(feature = "counter")]
+    pub const ALL_TYPES: [ContainerType; 6] = [
+        ContainerType::Map,
+        ContainerType::List,
+        ContainerType::Text,
+        ContainerType::Tree,
+        ContainerType::MovableList,
+        ContainerType::Counter,
+    ];
+    #[cfg(not(feature = "counter"))]
     pub const ALL_TYPES: [ContainerType; 5] = [
         ContainerType::Map,
         ContainerType::List,
@@ -206,37 +220,34 @@ impl ContainerType {
             ContainerType::Text => LoroValue::String(Arc::new(Default::default())),
             ContainerType::Tree => LoroValue::List(Arc::new(Default::default())),
             ContainerType::MovableList => LoroValue::List(Arc::new(Default::default())),
+            #[cfg(feature = "counter")]
+            ContainerType::Counter => LoroValue::I64(0),
+            ContainerType::Unknown(_) => unreachable!(),
         }
     }
 
     pub fn to_u8(self) -> u8 {
         match self {
-            ContainerType::Map => 1,
-            ContainerType::List => 2,
-            ContainerType::Text => 3,
-            ContainerType::Tree => 4,
-            ContainerType::MovableList => 5,
-        }
-    }
-
-    pub fn from_u8(v: u8) -> Self {
-        match v {
-            1 => ContainerType::Map,
-            2 => ContainerType::List,
-            3 => ContainerType::Text,
-            4 => ContainerType::Tree,
-            5 => ContainerType::MovableList,
-            _ => unreachable!(),
+            ContainerType::Map => 0,
+            ContainerType::List => 1,
+            ContainerType::Text => 2,
+            ContainerType::Tree => 3,
+            ContainerType::MovableList => 4,
+            #[cfg(feature = "counter")]
+            ContainerType::Counter => 5,
+            ContainerType::Unknown(k) => k,
         }
     }
 
     pub fn try_from_u8(v: u8) -> LoroResult<Self> {
         match v {
-            1 => Ok(ContainerType::Map),
-            2 => Ok(ContainerType::List),
-            3 => Ok(ContainerType::Text),
-            4 => Ok(ContainerType::Tree),
-            5 => Ok(ContainerType::MovableList),
+            0 => Ok(ContainerType::Map),
+            1 => Ok(ContainerType::List),
+            2 => Ok(ContainerType::Text),
+            3 => Ok(ContainerType::Tree),
+            4 => Ok(ContainerType::MovableList),
+            #[cfg(feature = "counter")]
+            5 => Ok(ContainerType::Counter),
             _ => Err(LoroError::DecodeError(
                 format!("Unknown container type {v}").into_boxed_str(),
             )),
@@ -257,6 +268,9 @@ mod container {
                 ContainerType::MovableList => "MovableList",
                 ContainerType::Text => "Text",
                 ContainerType::Tree => "Tree",
+                #[cfg(feature = "counter")]
+                ContainerType::Counter => "Counter",
+                ContainerType::Unknown(k) => return f.write_fmt(format_args!("Unknown({})", k)),
             })
         }
     }
@@ -356,6 +370,10 @@ mod container {
                 ContainerID::Normal { container_type, .. } => *container_type,
             }
         }
+
+        pub fn is_unknown(&self) -> bool {
+            matches!(self.container_type(), ContainerType::Unknown(_))
+        }
     }
 
     impl TryFrom<&str> for ContainerType {
@@ -394,8 +412,10 @@ pub const DELETED_TREE_ROOT: TreeID = TreeID {
 /// Special ID:
 /// - [`DELETED_TREE_ROOT`]: the root of all deleted nodes. To get it by [`TreeID::delete_root()`]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+
 pub struct TreeID {
     pub peer: PeerID,
+    // TODO: can use a NonMax here
     pub counter: Counter,
 }
 

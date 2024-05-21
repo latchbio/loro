@@ -38,8 +38,13 @@ impl OpGroups {
         for op in change.ops.iter() {
             if matches!(
                 op.container.get_type(),
-                ContainerType::Text | ContainerType::List
+                ContainerType::Text | ContainerType::List | ContainerType::Unknown(_)
             ) {
+                continue;
+            }
+
+            #[cfg(feature = "counter")]
+            if matches!(op.container.get_type(), ContainerType::Counter) {
                 continue;
             }
 
@@ -184,7 +189,7 @@ impl OpGroupTrait for MapOpGroup {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct GroupedTreeOpInfo {
     pub(crate) peer: PeerID,
     pub(crate) counter: Counter,
@@ -226,11 +231,9 @@ pub(crate) struct TreeOpGroup {
 impl OpGroupTrait for TreeOpGroup {
     fn insert(&mut self, op: &RichOp) {
         let tree_op = op.raw_op().content.as_tree().unwrap();
-        let target = tree_op.target;
-        let parent = tree_op.parent;
         let entry = self.ops.entry(op.lamport()).or_default();
         entry.insert(GroupedTreeOpInfo {
-            value: TreeOp { target, parent },
+            value: tree_op.clone(),
             counter: op.raw_op().counter,
             peer: op.peer,
         });
@@ -298,8 +301,13 @@ impl OpGroupTrait for MovableListOpGroup {
                     let full_id = op.id_full();
                     let mapping = self
                         .elem_mappings
-                        .get_mut(elem_id)
-                        .unwrap()
+                        .entry(*elem_id)
+                        .or_insert_with(|| {
+                            MovableListTarget::Multiple(Box::new(MultipleInner {
+                                poses: BTreeSet::default(),
+                                values: BTreeSet::default(),
+                            }))
+                        })
                         .upgrade(*elem_id);
                     mapping.values.insert(GroupedMapOpInfo {
                         value: value.clone(),
@@ -312,21 +320,42 @@ impl OpGroupTrait for MovableListOpGroup {
                     for (i, v) in self.arena.iter_value_slice(slice.to_range()).enumerate() {
                         let id = start_id.inc(i as i32);
                         let full_id = op.id_full().inc(i as i32);
-                        self.elem_mappings.insert(
-                            id,
-                            MovableListTarget::One {
-                                value: v,
+                        if let Some(target) = self.elem_mappings.get_mut(&id) {
+                            let inner = target.upgrade(id);
+                            inner.poses.insert(GroupedMapOpInfo {
+                                value: (),
                                 counter: full_id.counter,
-                            },
-                        );
+                                lamport: full_id.lamport,
+                                peer: full_id.peer,
+                            });
+                            inner.values.insert(GroupedMapOpInfo {
+                                value: v.clone(),
+                                counter: full_id.counter,
+                                lamport: full_id.lamport,
+                                peer: full_id.peer,
+                            });
+                        } else {
+                            self.elem_mappings.insert(
+                                id,
+                                MovableListTarget::One {
+                                    value: v,
+                                    counter: full_id.counter,
+                                },
+                            );
+                        }
                     }
                 }
                 crate::container::list::list_op::InnerListOp::Move { from_id, .. } => {
                     let full_id = op.id_full();
                     let mapping = self
                         .elem_mappings
-                        .get_mut(from_id)
-                        .unwrap()
+                        .entry(*from_id)
+                        .or_insert_with(|| {
+                            MovableListTarget::Multiple(Box::new(MultipleInner {
+                                poses: BTreeSet::default(),
+                                values: BTreeSet::default(),
+                            }))
+                        })
                         .upgrade(*from_id);
                     mapping.poses.insert(GroupedMapOpInfo {
                         value: (),
@@ -347,6 +376,7 @@ impl OpGroupTrait for MovableListOpGroup {
             },
             InnerContent::Map(_) => unreachable!(),
             InnerContent::Tree(_) => unreachable!(),
+            InnerContent::Future(_) => unreachable!(),
         };
     }
 }

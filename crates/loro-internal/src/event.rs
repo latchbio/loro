@@ -31,6 +31,7 @@ pub struct ContainerDiff {
     pub id: ContainerID,
     pub path: Vec<(ContainerID, Index)>,
     pub(crate) idx: ContainerIdx,
+    pub is_unknown: bool,
     pub diff: Diff,
 }
 
@@ -226,6 +227,9 @@ pub(crate) enum InternalDiff {
     Map(MapDelta),
     Tree(TreeDelta),
     MovableList(MovableListInnerDelta),
+    #[cfg(feature = "counter")]
+    Counter(i64),
+    Unknown,
 }
 
 impl From<InternalDiff> for DiffVariant {
@@ -309,6 +313,9 @@ pub enum Diff {
     Text(TextDiff),
     Map(ResolvedMapDelta),
     Tree(TreeDiff),
+    #[cfg(feature = "counter")]
+    Counter(i64),
+    Unknown,
 }
 
 impl From<Diff> for DiffVariant {
@@ -325,6 +332,9 @@ impl InternalDiff {
             InternalDiff::Map(m) => m.updated.is_empty(),
             InternalDiff::Tree(t) => t.is_empty(),
             InternalDiff::MovableList(t) => t.is_empty(),
+            #[cfg(feature = "counter")]
+            InternalDiff::Counter(c) => *c == 0,
+            InternalDiff::Unknown => true,
         }
     }
 
@@ -345,6 +355,27 @@ impl InternalDiff {
 }
 
 impl Diff {
+    pub(crate) fn compose_ref(&mut self, diff: &Diff) {
+        // PERF: avoid clone
+        match (self, diff) {
+            (Diff::List(a), Diff::List(b)) => {
+                a.compose(b);
+            }
+            (Diff::Text(a), Diff::Text(b)) => {
+                a.compose(b);
+            }
+            (Diff::Map(a), Diff::Map(b)) => {
+                *a = a.clone().compose(b.clone());
+            }
+            (Diff::Tree(a), Diff::Tree(b)) => {
+                *a = a.clone().compose(b.clone());
+            }
+            #[cfg(feature = "counter")]
+            (Diff::Counter(a), Diff::Counter(b)) => *a += b,
+            (_, _) => unreachable!(),
+        }
+    }
+
     pub(crate) fn compose(self, diff: Diff) -> Result<Self, Self> {
         // PERF: avoid clone
         match (self, diff) {
@@ -359,7 +390,28 @@ impl Diff {
             (Diff::Map(a), Diff::Map(b)) => Ok(Diff::Map(a.compose(b))),
 
             (Diff::Tree(a), Diff::Tree(b)) => Ok(Diff::Tree(a.compose(b))),
+            #[cfg(feature = "counter")]
+            (Diff::Counter(a), Diff::Counter(b)) => Ok(Diff::Counter(a + b)),
             (a, _) => Err(a),
+        }
+    }
+
+    // Transform this diff based on the other diff
+    pub(crate) fn transform(&mut self, other: &Self, left_prior: bool) {
+        match (self, other) {
+            (Diff::List(a), Diff::List(b)) => a.transform_(b, left_prior),
+            (Diff::Text(a), Diff::Text(b)) => a.transform_(b, left_prior),
+            (Diff::Map(a), Diff::Map(b)) => a.transform(b, left_prior),
+            (Diff::Tree(a), Diff::Tree(b)) => a.transform(b, left_prior),
+            #[cfg(feature = "counter")]
+            (Diff::Counter(a), Diff::Counter(b)) => {
+                if left_prior {
+                    *a += b;
+                } else {
+                    *a -= b;
+                }
+            }
+            _ => {}
         }
     }
 
@@ -370,6 +422,9 @@ impl Diff {
             Diff::Text(t) => t.is_empty(),
             Diff::Map(m) => m.updated.is_empty(),
             Diff::Tree(t) => t.diff.is_empty(),
+            #[cfg(feature = "counter")]
+            Diff::Counter(c) => *c == 0,
+            Diff::Unknown => true,
         }
     }
 
@@ -393,6 +448,8 @@ impl Diff {
             }
 
             (Diff::Tree(a), Diff::Tree(b)) => Diff::Tree(a.extend(b.diff)),
+            #[cfg(feature = "counter")]
+            (Diff::Counter(a), Diff::Counter(b)) => Diff::Counter(a + b),
             _ => unreachable!(),
         }
     }

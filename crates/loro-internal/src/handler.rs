@@ -5,13 +5,12 @@ use crate::{
         idx::ContainerIdx,
         list::list_op::{DeleteSpan, DeleteSpanWithId, ListOp},
         richtext::{richtext_state::PosType, RichtextState, StyleOp, TextStyleInfoFlag},
-        tree::tree_op::TreeOp,
     },
     cursor::{Cursor, Side},
-    delta::{DeltaItem, StyleMeta, TreeDiffItem, TreeExternalDiff},
-    event::TextDiffItem,
+    delta::{DeltaItem, StyleMeta, TreeExternalDiff},
+    event::{Diff, TextDiffItem},
     op::ListSlice,
-    state::{ContainerState, IndexType, State, TreeParentId},
+    state::{ContainerState, IndexType, State},
     txn::EventHint,
     utils::{string_slice::StringSlice, utf16::count_utf16_len},
 };
@@ -20,8 +19,7 @@ use enum_as_inner::EnumAsInner;
 use fxhash::FxHashMap;
 use generic_btree::rle::HasLength;
 use loro_common::{
-    ContainerID, ContainerType, Counter, IdFull, InternalString, LoroError, LoroResult,
-    LoroTreeError, LoroValue, PeerID, TreeID, ID,
+    ContainerID, ContainerType, IdFull, InternalString, LoroError, LoroResult, LoroValue, ID,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -30,7 +28,10 @@ use std::{
     ops::Deref,
     sync::{Arc, Mutex, Weak},
 };
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
+
+mod tree;
+pub use tree::TreeHandler;
 
 const INSERT_CONTAINER_VALUE_ARG_ERROR: &str =
     "Cannot insert a LoroValue::Container directly. To create child container, use insert_container";
@@ -72,7 +73,7 @@ pub trait HandlerTrait: Clone + Sized {
     fn with_state<R>(&self, f: impl FnOnce(&mut State) -> LoroResult<R>) -> LoroResult<R> {
         let inner = self
             .attached_handler()
-            .ok_or(LoroError::MisuseDettachedContainer {
+            .ok_or(LoroError::MisuseDetachedContainer {
                 method: "with_state",
             })?;
         let state = inner.state.upgrade().unwrap();
@@ -91,7 +92,7 @@ fn create_handler(inner: &BasicHandler, id: ContainerID) -> Handler {
 }
 
 /// Flatten attributes that allow overlap
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BasicHandler {
     id: ContainerID,
     arena: SharedArena,
@@ -150,7 +151,7 @@ impl<T> MaybeDetached<T> {
 
     fn try_attached_state(&self) -> LoroResult<&BasicHandler> {
         match self {
-            MaybeDetached::Detached(_) => Err(LoroError::MisuseDettachedContainer {
+            MaybeDetached::Detached(_) => Err(LoroError::MisuseDetachedContainer {
                 method: "inner_state",
             }),
             MaybeDetached::Attached(a) => Ok(a),
@@ -211,6 +212,11 @@ impl BasicHandler {
                 ContainerType::MovableList => Handler::MovableList(MovableListHandler {
                     inner: handler.into(),
                 }),
+                #[cfg(feature = "counter")]
+                ContainerType::Counter => Handler::Counter(counter::CounterHandler {
+                    inner: handler.into(),
+                }),
+                ContainerType::Unknown(_) => unreachable!(),
             })
         }
     }
@@ -759,166 +765,62 @@ impl HandlerTrait for ListHandler {
         }
     }
 }
-
-///
 #[derive(Clone)]
-pub struct TreeHandler {
-    inner: MaybeDetached<TreeInner>,
+pub struct UnknownHandler {
+    inner: BasicHandler,
 }
 
-#[derive(Clone)]
-struct TreeInner {
-    next_counter: Counter,
-    map: FxHashMap<TreeID, MapHandler>,
-    parent_links: FxHashMap<TreeID, Option<TreeID>>,
-}
-
-impl TreeInner {
-    fn new() -> Self {
-        TreeInner {
-            next_counter: 0,
-            map: FxHashMap::default(),
-            parent_links: FxHashMap::default(),
-        }
-    }
-
-    fn create(&mut self, parent: Option<TreeID>) -> TreeID {
-        let id = TreeID::new(PeerID::MAX, self.next_counter);
-        self.next_counter += 1;
-        self.map.insert(
-            id,
-            Handler::new_unattached(ContainerType::Map)
-                .into_map()
-                .unwrap(),
-        );
-        self.parent_links.insert(id, parent);
-        id
-    }
-
-    fn delete(&mut self, id: TreeID) {
-        self.map.remove(&id);
-        self.parent_links.remove(&id);
-    }
-
-    fn get_parent(&self, id: TreeID) -> Option<Option<TreeID>> {
-        self.parent_links.get(&id).cloned()
-    }
-
-    fn mov(&mut self, target: TreeID, new_parent: Option<TreeID>) {
-        let old = self.parent_links.insert(target, new_parent);
-        assert!(old.is_some());
-    }
-
-    fn get_children(&self, id: TreeID) -> Option<Vec<TreeID>> {
-        let mut children = Vec::new();
-        for (c, p) in &self.parent_links {
-            if p.as_ref() == Some(&id) {
-                children.push(*c);
-            }
-        }
-        Some(children)
+impl Debug for UnknownHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UnknownHandler")
     }
 }
 
-impl HandlerTrait for TreeHandler {
-    fn to_handler(&self) -> Handler {
-        Handler::Tree(self.clone())
-    }
-
-    fn attach(
-        &self,
-        txn: &mut Transaction,
-        parent: &BasicHandler,
-        self_id: ContainerID,
-    ) -> LoroResult<Self> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let mut t = t.try_lock().unwrap();
-                let inner = create_handler(parent, self_id);
-                let tree = inner.into_tree().unwrap();
-                if t.value.map.is_empty() {
-                    t.attached = tree.attached_handler().cloned();
-                    Ok(tree)
-                } else {
-                    unimplemented!("attach detached tree");
-                }
-            }
-            MaybeDetached::Attached(a) => {
-                let new_inner = create_handler(a, self_id);
-                let ans = new_inner.into_tree().unwrap();
-                let mut mapping = FxHashMap::default();
-                for (t, p) in self
-                    .nodes()
-                    .into_iter()
-                    .map(|t| (t, self.get_node_parent(t).unwrap()))
-                {
-                    if let Some(p) = p {
-                        if !ans.contains(p) {
-                            let new_p = ans.create_with_txn(txn, None)?;
-                            mapping.insert(p, new_p);
-                            let new_t = ans.create_with_txn(txn, new_p)?;
-                            mapping.insert(t, new_t);
-                        }
-                    } else {
-                        let new_t = ans.create_with_txn(txn, None)?;
-                        mapping.insert(t, new_t);
-                    }
-                }
-
-                Ok(ans)
-            }
-        }
-    }
-
+impl HandlerTrait for UnknownHandler {
     fn is_attached(&self) -> bool {
-        self.inner.is_attached()
+        true
     }
 
     fn attached_handler(&self) -> Option<&BasicHandler> {
-        self.inner.attached_handler()
+        Some(&self.inner)
     }
 
     fn get_value(&self) -> LoroValue {
-        match &self.inner {
-            MaybeDetached::Detached(_) => unimplemented!(),
-            MaybeDetached::Attached(a) => a.get_value(),
-        }
+        todo!()
     }
 
     fn get_deep_value(&self) -> LoroValue {
-        match &self.inner {
-            MaybeDetached::Detached(_) => unimplemented!(),
-            MaybeDetached::Attached(a) => a.get_deep_value(),
-        }
+        todo!()
     }
 
     fn kind(&self) -> ContainerType {
-        ContainerType::Tree
+        self.inner.id.container_type()
     }
 
-    fn get_attached(&self) -> Option<Self> {
-        match &self.inner {
-            MaybeDetached::Detached(d) => d.lock().unwrap().attached.clone().map(|x| Self {
-                inner: MaybeDetached::Attached(x),
-            }),
-            MaybeDetached::Attached(_a) => Some(self.clone()),
-        }
+    fn to_handler(&self) -> Handler {
+        Handler::Unknown(self.clone())
     }
 
     fn from_handler(h: Handler) -> Option<Self> {
         match h {
-            Handler::Tree(x) => Some(x),
+            Handler::Unknown(x) => Some(x),
             _ => None,
         }
     }
-}
 
-impl std::fmt::Debug for TreeHandler {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.inner {
-            MaybeDetached::Detached(_) => write!(f, "TreeHandler Dettached"),
-            MaybeDetached::Attached(a) => write!(f, "TreeHandler {}", a.id),
-        }
+    fn attach(
+        &self,
+        _txn: &mut Transaction,
+        _parent: &BasicHandler,
+        self_id: ContainerID,
+    ) -> LoroResult<Self> {
+        let new_inner = create_handler(&self.inner, self_id);
+        let ans = new_inner.into_unknown().unwrap();
+        Ok(ans)
+    }
+
+    fn get_attached(&self) -> Option<Self> {
+        Some(self.clone())
     }
 }
 
@@ -929,6 +831,9 @@ pub enum Handler {
     List(ListHandler),
     MovableList(MovableListHandler),
     Tree(TreeHandler),
+    #[cfg(feature = "counter")]
+    Counter(counter::CounterHandler),
+    Unknown(UnknownHandler),
 }
 
 impl HandlerTrait for Handler {
@@ -939,6 +844,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => x.is_attached(),
             Self::Tree(x) => x.is_attached(),
             Self::MovableList(x) => x.is_attached(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.is_attached(),
+            Self::Unknown(x) => x.is_attached(),
         }
     }
 
@@ -949,6 +857,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => x.attached_handler(),
             Self::MovableList(x) => x.attached_handler(),
             Self::Tree(x) => x.attached_handler(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.attached_handler(),
+            Self::Unknown(x) => x.attached_handler(),
         }
     }
 
@@ -959,6 +870,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => x.get_value(),
             Self::MovableList(x) => x.get_value(),
             Self::Tree(x) => x.get_value(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.get_value(),
+            Self::Unknown(x) => x.get_value(),
         }
     }
 
@@ -969,6 +883,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => x.get_deep_value(),
             Self::MovableList(x) => x.get_deep_value(),
             Self::Tree(x) => x.get_deep_value(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.get_deep_value(),
+            Self::Unknown(x) => x.get_deep_value(),
         }
     }
 
@@ -979,6 +896,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => x.kind(),
             Self::MovableList(x) => x.kind(),
             Self::Tree(x) => x.kind(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.kind(),
+            Self::Unknown(x) => x.kind(),
         }
     }
 
@@ -989,6 +909,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => x.to_handler(),
             Self::MovableList(x) => x.to_handler(),
             Self::Tree(x) => x.to_handler(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.to_handler(),
+            Self::Unknown(x) => x.to_handler(),
         }
     }
 
@@ -1004,6 +927,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => Ok(Handler::List(x.attach(txn, parent, self_id)?)),
             Self::MovableList(x) => Ok(Handler::MovableList(x.attach(txn, parent, self_id)?)),
             Self::Tree(x) => Ok(Handler::Tree(x.attach(txn, parent, self_id)?)),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => Ok(Handler::Counter(x.attach(txn, parent, self_id)?)),
+            Self::Unknown(x) => Ok(Handler::Unknown(x.attach(txn, parent, self_id)?)),
         }
     }
 
@@ -1014,6 +940,9 @@ impl HandlerTrait for Handler {
             Self::List(x) => x.get_attached().map(Handler::List),
             Self::MovableList(x) => x.get_attached().map(Handler::MovableList),
             Self::Tree(x) => x.get_attached().map(Handler::Tree),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.get_attached().map(Handler::Counter),
+            Self::Unknown(x) => x.get_attached().map(Handler::Unknown),
         }
     }
 
@@ -1054,9 +983,15 @@ impl Handler {
             ContainerType::MovableList => Self::MovableList(MovableListHandler {
                 inner: handler.into(),
             }),
+            #[cfg(feature = "counter")]
+            ContainerType::Counter => Self::Counter(counter::CounterHandler {
+                inner: handler.into(),
+            }),
+            ContainerType::Unknown(_) => Self::Unknown(UnknownHandler { inner: handler }),
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn new_unattached(kind: ContainerType) -> Self {
         match kind {
             ContainerType::Text => Self::Text(TextHandler::new_detached()),
@@ -1064,6 +999,9 @@ impl Handler {
             ContainerType::List => Self::List(ListHandler::new_detached()),
             ContainerType::Tree => Self::Tree(TreeHandler::new_detached()),
             ContainerType::MovableList => Self::MovableList(MovableListHandler::new_detached()),
+            #[cfg(feature = "counter")]
+            ContainerType::Counter => Self::Counter(counter::CounterHandler::new_detached()),
+            ContainerType::Unknown(_) => unreachable!(),
         }
     }
 
@@ -1074,6 +1012,9 @@ impl Handler {
             Self::Text(x) => x.id(),
             Self::Tree(x) => x.id(),
             Self::MovableList(x) => x.id(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.id(),
+            Self::Unknown(x) => x.id(),
         }
     }
 
@@ -1084,6 +1025,9 @@ impl Handler {
             Self::Text(x) => x.idx(),
             Self::Tree(x) => x.idx(),
             Self::MovableList(x) => x.idx(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.idx(),
+            Self::Unknown(x) => x.idx(),
         }
     }
 
@@ -1094,6 +1038,9 @@ impl Handler {
             Self::Text(_) => ContainerType::Text,
             Self::Tree(_) => ContainerType::Tree,
             Self::MovableList(_) => ContainerType::MovableList,
+            #[cfg(feature = "counter")]
+            Self::Counter(_) => ContainerType::Counter,
+            Self::Unknown(x) => x.id().container_type(),
         }
     }
 
@@ -1104,7 +1051,81 @@ impl Handler {
             Self::MovableList(x) => x.get_deep_value(),
             Self::Text(x) => x.get_deep_value(),
             Self::Tree(x) => x.get_deep_value(),
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => x.get_deep_value(),
+            Self::Unknown(x) => x.get_deep_value(),
         }
+    }
+
+    pub(crate) fn apply_diff(
+        &self,
+        diff: Diff,
+        on_container_remap: &mut dyn FnMut(ContainerID, ContainerID),
+    ) -> LoroResult<()> {
+        match self {
+            Self::Map(x) => {
+                let diff = diff.into_map().unwrap();
+                for (key, value) in diff.updated.into_iter() {
+                    match value.value {
+                        Some(ValueOrHandler::Handler(h)) => {
+                            let old_id = h.id();
+                            let new_h = x.insert_container(
+                                &key,
+                                Handler::new_unattached(old_id.container_type()),
+                            )?;
+                            let new_id = new_h.id();
+                            on_container_remap(old_id, new_id);
+                        }
+                        Some(ValueOrHandler::Value(v)) => {
+                            x.insert_without_skipping(&key, v)?;
+                        }
+                        None => {
+                            x.delete(&key)?;
+                        }
+                    }
+                }
+            }
+            Self::Text(x) => {
+                let delta = diff.into_text().unwrap();
+                x.apply_delta(&TextDelta::from_text_diff(delta.iter()))?;
+            }
+            Self::List(x) => {
+                let delta = diff.into_list().unwrap();
+                x.apply_delta(delta, on_container_remap)?;
+            }
+            Self::MovableList(x) => {
+                let delta = diff.into_list().unwrap();
+                x.apply_delta(delta, on_container_remap)?;
+            }
+            Self::Tree(x) => {
+                for diff in diff.into_tree().unwrap().diff {
+                    let target = diff.target;
+                    match diff.action {
+                        TreeExternalDiff::Create {
+                            parent,
+                            index,
+                            position: _,
+                        } => {
+                            x.create_at_with_target(parent, index, target)?;
+                            // create map event
+                        }
+                        TreeExternalDiff::Delete { .. } => x.delete(target)?,
+                        TreeExternalDiff::Move { parent, index, .. } => {
+                            x.move_to(target, parent, index)?
+                        }
+                    }
+                }
+            }
+            #[cfg(feature = "counter")]
+            Self::Counter(x) => {
+                let delta = diff.into_counter().unwrap();
+                x.increment(delta)?;
+            }
+            Self::Unknown(_) => {
+                // do nothing
+            }
+        }
+        Ok(())
     }
 }
 
@@ -1387,6 +1408,7 @@ impl TextHandler {
         }
 
         if pos + len > self.len_event() {
+            error!("pos={} len={} len_event={}", pos, len, self.len_event());
             return Err(LoroError::OutOfBound {
                 pos: pos + len,
                 len: self.len_event(),
@@ -1394,7 +1416,7 @@ impl TextHandler {
         }
 
         let inner = self.inner.try_attached_state()?;
-        let s = tracing::span!(tracing::Level::INFO, "delete pos={} len={}", pos, len);
+        let s = tracing::span!(tracing::Level::INFO, "delete", "pos={} len={}", pos, len);
         let _e = s.enter();
         let ranges = inner.with_state(|state| {
             let richtext_state = state.as_richtext_state_mut().unwrap();
@@ -2127,6 +2149,55 @@ impl ListHandler {
             }
         }
     }
+
+    fn apply_delta(
+        &self,
+        delta: loro_delta::DeltaRope<
+            loro_delta::array_vec::ArrayVec<ValueOrHandler, 8>,
+            crate::event::ListDeltaMeta,
+        >,
+        on_container_remap: &mut dyn FnMut(ContainerID, ContainerID),
+    ) -> LoroResult<()> {
+        match &self.inner {
+            MaybeDetached::Detached(_) => unimplemented!(),
+            MaybeDetached::Attached(_) => {
+                let mut index = 0;
+                for item in delta.iter() {
+                    match item {
+                        loro_delta::DeltaItem::Retain { len, .. } => {
+                            index += len;
+                        }
+                        loro_delta::DeltaItem::Replace { value, delete, .. } => {
+                            if *delete > 0 {
+                                self.delete(index, *delete)?;
+                            }
+
+                            for v in value.iter() {
+                                match v {
+                                    ValueOrHandler::Value(v) => {
+                                        self.insert(index, v.clone())?;
+                                    }
+                                    ValueOrHandler::Handler(h) => {
+                                        let old_id = h.id();
+                                        let new_h = self.insert_container(
+                                            index,
+                                            Handler::new_unattached(old_id.container_type()),
+                                        )?;
+                                        let new_id = new_h.id();
+                                        on_container_remap(old_id, new_id);
+                                    }
+                                }
+
+                                index += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl MovableListHandler {
@@ -2743,6 +2814,59 @@ impl MovableListHandler {
             }
         }
     }
+
+    fn apply_delta(
+        &self,
+        delta: loro_delta::DeltaRope<
+            loro_delta::array_vec::ArrayVec<ValueOrHandler, 8>,
+            crate::event::ListDeltaMeta,
+        >,
+        on_container_remap: &mut dyn FnMut(ContainerID, ContainerID),
+    ) -> LoroResult<()> {
+        match &self.inner {
+            MaybeDetached::Detached(_) => {
+                unimplemented!();
+            }
+            MaybeDetached::Attached(_) => {
+                let mut index = 0;
+                for d in delta.iter() {
+                    match d {
+                        loro_delta::DeltaItem::Retain { len, .. } => {
+                            index += len;
+                        }
+                        loro_delta::DeltaItem::Replace {
+                            value,
+                            delete,
+                            attr: _attr,
+                        } => {
+                            // TODO: handle move error
+                            self.delete(index, *delete)?;
+                            for v in value.iter() {
+                                match v {
+                                    ValueOrHandler::Value(v) => {
+                                        self.insert(index, v.clone())?;
+                                    }
+                                    ValueOrHandler::Handler(h) => {
+                                        let old_id = h.id();
+                                        let new_h = self.insert_container(
+                                            index,
+                                            Handler::new_unattached(old_id.container_type()),
+                                        )?;
+                                        let new_id = new_h.id();
+                                        on_container_remap(old_id, new_id);
+                                    }
+                                }
+
+                                index += 1;
+                            }
+                        }
+                    }
+                }
+
+                Ok(())
+            }
+        }
+    }
 }
 
 impl MapHandler {
@@ -2766,6 +2890,43 @@ impl MapHandler {
             MaybeDetached::Attached(a) => {
                 a.with_txn(|txn| self.insert_with_txn(txn, key, value.into()))
             }
+        }
+    }
+
+    /// This method will insert the value even if the same value is already in the given entry.
+    fn insert_without_skipping(&self, key: &str, value: impl Into<LoroValue>) -> LoroResult<()> {
+        match &self.inner {
+            MaybeDetached::Detached(m) => {
+                let mut m = m.try_lock().unwrap();
+                m.value
+                    .insert(key.into(), ValueOrHandler::Value(value.into()));
+                Ok(())
+            }
+            MaybeDetached::Attached(a) => a.with_txn(|txn| {
+                let this = &self;
+                let value = value.into();
+                if let Some(_value) = value.as_container() {
+                    return Err(LoroError::ArgErr(
+                        INSERT_CONTAINER_VALUE_ARG_ERROR
+                            .to_string()
+                            .into_boxed_str(),
+                    ));
+                }
+
+                let inner = this.inner.try_attached_state()?;
+                txn.apply_local_op(
+                    inner.container_idx,
+                    crate::op::RawOpContent::Map(crate::container::map::MapSet {
+                        key: key.into(),
+                        value: Some(value.clone()),
+                    }),
+                    EventHint::Map {
+                        key: key.into(),
+                        value: Some(value.clone()),
+                    },
+                    &inner.state,
+                )
+            }),
         }
     }
 
@@ -2804,10 +2965,6 @@ impl MapHandler {
     }
 
     pub fn insert_container<T: HandlerTrait>(&self, key: &str, handler: T) -> LoroResult<T> {
-        if handler.is_attached() {
-            return Err(LoroError::ReattachAttachedContainer);
-        }
-
         match &self.inner {
             MaybeDetached::Detached(m) => {
                 let mut m = m.try_lock().unwrap();
@@ -2935,7 +3092,7 @@ impl MapHandler {
 
     pub fn get_deep_value_with_id(&self) -> LoroResult<LoroValue> {
         match &self.inner {
-            MaybeDetached::Detached(_) => Err(LoroError::MisuseDettachedContainer {
+            MaybeDetached::Detached(_) => Err(LoroError::MisuseDetachedContainer {
                 method: "get_deep_value_with_id",
             }),
             MaybeDetached::Attached(inner) => Ok(inner.with_doc_state(|state| {
@@ -3010,201 +3167,6 @@ impl MapHandler {
     }
 }
 
-impl TreeHandler {
-    /// Create a new container that is detached from the document.
-    ///
-    /// The edits on a detached container will not be persisted/synced.
-    /// To attach the container to the document, please insert it into an attached
-    /// container.
-    pub fn new_detached() -> Self {
-        Self {
-            inner: MaybeDetached::new_detached(TreeInner::new()),
-        }
-    }
-
-    pub fn delete(&self, target: TreeID) -> LoroResult<()> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let mut t = t.try_lock().unwrap();
-                t.value.delete(target);
-                Ok(())
-            }
-            MaybeDetached::Attached(a) => a.with_txn(|txn| self.delete_with_txn(txn, target)),
-        }
-    }
-
-    pub fn delete_with_txn(&self, txn: &mut Transaction, target: TreeID) -> LoroResult<()> {
-        let inner = self.inner.try_attached_state()?;
-        txn.apply_local_op(
-            inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp {
-                target,
-                parent: Some(TreeID::delete_root()),
-            }),
-            EventHint::Tree(TreeDiffItem {
-                target,
-                action: TreeExternalDiff::Delete,
-            }),
-            &inner.state,
-        )
-    }
-
-    pub fn create<T: Into<Option<TreeID>>>(&self, parent: T) -> LoroResult<TreeID> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let mut t = t.try_lock().unwrap();
-                Ok(t.value.create(parent.into()))
-            }
-            MaybeDetached::Attached(a) => a.with_txn(|txn| self.create_with_txn(txn, parent)),
-        }
-    }
-
-    pub fn create_with_txn<T: Into<Option<TreeID>>>(
-        &self,
-        txn: &mut Transaction,
-        parent: T,
-    ) -> LoroResult<TreeID> {
-        let inner = self.inner.try_attached_state()?;
-        let parent: Option<TreeID> = parent.into();
-        let tree_id = TreeID::from_id(txn.next_id());
-        let event_hint = TreeDiffItem {
-            target: tree_id,
-            action: TreeExternalDiff::Create(parent),
-        };
-        txn.apply_local_op(
-            inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp {
-                target: tree_id,
-                parent,
-            }),
-            EventHint::Tree(event_hint),
-            &inner.state,
-        )?;
-        Ok(tree_id)
-    }
-
-    pub fn mov<T: Into<Option<TreeID>>>(&self, target: TreeID, parent: T) -> LoroResult<()> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let mut t = t.try_lock().unwrap();
-                t.value.mov(target, parent.into());
-                Ok(())
-            }
-            MaybeDetached::Attached(a) => a.with_txn(|txn| self.mov_with_txn(txn, target, parent)),
-        }
-    }
-
-    pub fn mov_with_txn<T: Into<Option<TreeID>>>(
-        &self,
-        txn: &mut Transaction,
-        target: TreeID,
-        parent: T,
-    ) -> LoroResult<()> {
-        let parent = parent.into();
-        let inner = self.inner.try_attached_state()?;
-        txn.apply_local_op(
-            inner.container_idx,
-            crate::op::RawOpContent::Tree(TreeOp { target, parent }),
-            EventHint::Tree(TreeDiffItem {
-                target,
-                action: TreeExternalDiff::Move(parent),
-            }),
-            &inner.state,
-        )
-    }
-
-    pub fn get_meta(&self, target: TreeID) -> LoroResult<MapHandler> {
-        match &self.inner {
-            MaybeDetached::Detached(d) => {
-                let d = d.try_lock().unwrap();
-                d.value
-                    .map
-                    .get(&target)
-                    .cloned()
-                    .ok_or(LoroTreeError::TreeNodeNotExist(target).into())
-            }
-            MaybeDetached::Attached(a) => {
-                if !self.contains(target) {
-                    return Err(LoroTreeError::TreeNodeNotExist(target).into());
-                }
-                let map_container_id = target.associated_meta_container();
-                let handler = create_handler(a, map_container_id);
-                Ok(handler.into_map().unwrap())
-            }
-        }
-    }
-
-    /// Get the parent of the node, if the node is deleted or does not exist, return None
-    pub fn get_node_parent(&self, target: TreeID) -> Option<Option<TreeID>> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.get_parent(target)
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.parent(target).map(|p| match p {
-                    TreeParentId::None => None,
-                    TreeParentId::Node(parent_id) => Some(parent_id),
-                    _ => unreachable!(),
-                })
-            }),
-        }
-    }
-
-    pub fn children(&self, target: TreeID) -> Vec<TreeID> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.get_children(target).unwrap()
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.get_children(&TreeParentId::Node(target))
-            }),
-        }
-    }
-
-    pub fn contains(&self, target: TreeID) -> bool {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.map.contains_key(&target)
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.contains(target)
-            }),
-        }
-    }
-
-    pub fn nodes(&self) -> Vec<TreeID> {
-        match &self.inner {
-            MaybeDetached::Detached(t) => {
-                let t = t.try_lock().unwrap();
-                t.value.map.keys().cloned().collect()
-            }
-            MaybeDetached::Attached(a) => a.with_state(|state| {
-                let a = state.as_tree_state().unwrap();
-                a.nodes()
-            }),
-        }
-    }
-
-    #[allow(non_snake_case)]
-    pub fn __internal__next_tree_id(&self) -> TreeID {
-        match &self.inner {
-            MaybeDetached::Detached(d) => {
-                let d = d.try_lock().unwrap();
-                TreeID::new(PeerID::MAX, d.value.next_counter)
-            }
-            MaybeDetached::Attached(a) => a
-                .with_txn(|txn| Ok(TreeID::from_id(txn.next_id())))
-                .unwrap(),
-        }
-    }
-}
-
 #[inline(always)]
 fn with_txn<R>(
     txn: &Weak<Mutex<Option<Transaction>>>,
@@ -3215,6 +3177,140 @@ fn with_txn<R>(
     match &mut *txn {
         Some(t) => f(t),
         None => Err(LoroError::AutoCommitNotStarted),
+    }
+}
+
+#[cfg(feature = "counter")]
+pub mod counter {
+
+    use loro_common::LoroResult;
+
+    use crate::{
+        state::ContainerState,
+        txn::{EventHint, Transaction},
+        HandlerTrait,
+    };
+
+    use super::{create_handler, Handler, MaybeDetached};
+
+    #[derive(Clone)]
+    pub struct CounterHandler {
+        pub(super) inner: MaybeDetached<i64>,
+    }
+
+    impl CounterHandler {
+        pub fn new_detached() -> Self {
+            Self {
+                inner: MaybeDetached::new_detached(0),
+            }
+        }
+
+        pub fn increment(&self, n: i64) -> LoroResult<()> {
+            match &self.inner {
+                MaybeDetached::Detached(d) => {
+                    let d = &mut d.try_lock().unwrap().value;
+                    *d += n;
+                    Ok(())
+                }
+                MaybeDetached::Attached(a) => a.with_txn(|txn| self.increment_with_txn(txn, n)),
+            }
+        }
+
+        fn increment_with_txn(&self, txn: &mut Transaction, n: i64) -> LoroResult<()> {
+            let inner = self.inner.try_attached_state()?;
+            txn.apply_local_op(
+                inner.container_idx,
+                crate::op::RawOpContent::Counter(n),
+                EventHint::Counter(n),
+                &inner.state,
+            )
+        }
+    }
+
+    impl std::fmt::Debug for CounterHandler {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match &self.inner {
+                MaybeDetached::Detached(_) => write!(f, "CounterHandler Dettached"),
+                MaybeDetached::Attached(a) => write!(f, "CounterHandler {}", a.id),
+            }
+        }
+    }
+
+    impl HandlerTrait for CounterHandler {
+        fn is_attached(&self) -> bool {
+            matches!(&self.inner, MaybeDetached::Attached(..))
+        }
+
+        fn attached_handler(&self) -> Option<&crate::BasicHandler> {
+            self.inner.attached_handler()
+        }
+
+        fn get_value(&self) -> loro_common::LoroValue {
+            match &self.inner {
+                MaybeDetached::Detached(t) => {
+                    let t = t.try_lock().unwrap();
+                    t.value.into()
+                }
+                MaybeDetached::Attached(a) => {
+                    a.with_state(|state| state.as_counter_state_mut().unwrap().get_value())
+                }
+            }
+        }
+
+        fn get_deep_value(&self) -> loro_common::LoroValue {
+            self.get_value()
+        }
+
+        fn kind(&self) -> loro_common::ContainerType {
+            loro_common::ContainerType::Counter
+        }
+
+        fn to_handler(&self) -> super::Handler {
+            Handler::Counter(self.clone())
+        }
+
+        fn from_handler(h: super::Handler) -> Option<Self> {
+            match h {
+                Handler::Counter(x) => Some(x),
+                _ => None,
+            }
+        }
+
+        fn attach(
+            &self,
+            txn: &mut crate::txn::Transaction,
+            parent: &crate::BasicHandler,
+            self_id: loro_common::ContainerID,
+        ) -> loro_common::LoroResult<Self> {
+            match &self.inner {
+                MaybeDetached::Detached(v) => {
+                    let mut v = v.try_lock().unwrap();
+                    let inner = create_handler(parent, self_id);
+                    let c = inner.into_counter().unwrap();
+
+                    c.increment_with_txn(txn, v.value)?;
+
+                    v.attached = c.attached_handler().cloned();
+                    Ok(c)
+                }
+                MaybeDetached::Attached(a) => {
+                    let new_inner = create_handler(a, self_id);
+                    let ans = new_inner.into_counter().unwrap();
+                    let delta = *self.get_value().as_i64().unwrap();
+                    ans.increment_with_txn(txn, delta)?;
+                    Ok(ans)
+                }
+            }
+        }
+
+        fn get_attached(&self) -> Option<Self> {
+            match &self.inner {
+                MaybeDetached::Attached(a) => Some(Self {
+                    inner: MaybeDetached::Attached(a.clone()),
+                }),
+                MaybeDetached::Detached(_) => None,
+            }
+        }
     }
 }
 
@@ -3389,7 +3485,7 @@ mod test {
         loro.set_peer_id(1).unwrap();
         let tree = loro.get_tree("root");
         let id = loro
-            .with_txn(|txn| tree.create_with_txn(txn, None))
+            .with_txn(|txn| tree.create_with_txn(txn, None, 0))
             .unwrap();
         loro.with_txn(|txn| {
             let meta = tree.get_meta(id)?;
@@ -3404,7 +3500,7 @@ mod test {
             .unwrap();
         assert_eq!(meta, 123.into());
         assert_eq!(
-            r#"[{"parent":null,"meta":{"a":123},"id":"0@1"}]"#,
+            r#"[{"parent":null,"meta":{"a":123},"id":"0@1","index":0,"position":"80"}]"#,
             tree.get_deep_value().to_json()
         );
         let bytes = loro.export_snapshot();
@@ -3419,11 +3515,11 @@ mod test {
         let tree = loro.get_tree("root");
         let text = loro.get_text("text");
         loro.with_txn(|txn| {
-            let id = tree.create_with_txn(txn, None)?;
+            let id = tree.create_with_txn(txn, None, 0)?;
             let meta = tree.get_meta(id)?;
             meta.insert_with_txn(txn, "a", 1.into())?;
             text.insert_with_txn(txn, 0, "abc")?;
-            let _id2 = tree.create_with_txn(txn, None)?;
+            let _id2 = tree.create_with_txn(txn, None, 0)?;
             meta.insert_with_txn(txn, "b", 2.into())?;
             Ok(id)
         })

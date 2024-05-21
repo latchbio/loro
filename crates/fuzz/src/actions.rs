@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::container::CounterAction;
 pub use crate::container::MovableListAction;
 
 use super::{
@@ -14,13 +15,27 @@ use loro::{Container, ContainerType};
 use tabled::Tabled;
 
 #[enum_dispatch(Actionable)]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ActionInner {
     Map(MapAction),
     List(ListAction),
     MovableList(MovableListAction),
     Text(TextAction),
     Tree(TreeAction),
+    Counter(CounterAction),
+}
+
+impl Debug for ActionInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActionInner::Map(m) => write!(f, "ActionInner::Map({:?})", m),
+            ActionInner::List(l) => write!(f, "ActionInner::List({:?})", l),
+            ActionInner::Text(t) => write!(f, "ActionInner::Text({:?})", t),
+            ActionInner::Tree(t) => write!(f, "ActionInner::Tree({:?})", t),
+            ActionInner::MovableList(m) => write!(f, "ActionInner::MovableList({:?})", m),
+            ActionInner::Counter(c) => write!(f, "ActionInner::Counter({:?})", c),
+        }
+    }
 }
 
 impl ActionInner {
@@ -33,6 +48,8 @@ impl ActionInner {
             }
             ContainerType::Text => Self::Text(TextAction::from_generic_action(action)),
             ContainerType::Tree => Self::Tree(TreeAction::from_generic_action(action)),
+            ContainerType::Counter => Self::Counter(CounterAction::from_generic_action(action)),
+            ContainerType::Unknown(_) => unreachable!(),
         }
     }
 }
@@ -48,6 +65,15 @@ pub enum Action {
     Checkout {
         site: u8,
         to: u32,
+    },
+    Undo {
+        site: u8,
+        op_len: u32,
+    },
+    // For concurrent undo
+    SyncAllUndo {
+        site: u8,
+        op_len: u32,
     },
     Sync {
         from: u8,
@@ -134,6 +160,18 @@ impl Tabled for Action {
                 fields.extend(action.as_action().unwrap().table_fields());
                 fields
             }
+            Action::Undo { site, op_len } => vec![
+                "undo".into(),
+                format!("{}", site).into(),
+                format!("{} op len", op_len).into(),
+                "".into(),
+            ],
+            Action::SyncAllUndo { site, op_len } => vec![
+                "sync all undo".into(),
+                format!("{}", site).into(),
+                format!("{} op len", op_len).into(),
+                "".into(),
+            ],
         }
     }
 

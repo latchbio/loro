@@ -1,10 +1,12 @@
 pub use crate::container::richtext::config::{StyleConfig, StyleConfigMap};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Configure {
     pub(crate) text_style_config: Arc<RwLock<StyleConfigMap>>,
     record_timestamp: Arc<AtomicBool>,
     merge_interval: Arc<AtomicI64>,
+    /// do not use `jitter` by default
+    pub(crate) tree_position_jitter: Arc<AtomicU8>,
 }
 
 impl Default for Configure {
@@ -13,6 +15,7 @@ impl Default for Configure {
             text_style_config: Arc::new(RwLock::new(StyleConfigMap::default_rich_text_config())),
             record_timestamp: Arc::new(AtomicBool::new(false)),
             merge_interval: Arc::new(AtomicI64::new(1000 * 1000)),
+            tree_position_jitter: Arc::new(AtomicU8::new(0)),
         }
     }
 }
@@ -32,6 +35,11 @@ impl Configure {
             .store(record, std::sync::atomic::Ordering::Relaxed);
     }
 
+    pub fn set_fractional_index_jitter(&self, jitter: u8) {
+        self.tree_position_jitter
+            .store(jitter, std::sync::atomic::Ordering::Relaxed);
+    }
+
     pub fn merge_interval(&self) -> i64 {
         self.merge_interval
             .load(std::sync::atomic::Ordering::Relaxed)
@@ -43,12 +51,13 @@ impl Configure {
     }
 }
 
+#[derive(Debug)]
 pub struct DefaultRandom;
 
 #[cfg(test)]
 use std::sync::atomic::AtomicU64;
 use std::sync::{
-    atomic::{AtomicBool, AtomicI64},
+    atomic::{AtomicBool, AtomicI64, AtomicU8},
     Arc, RwLock,
 };
 #[cfg(test)]

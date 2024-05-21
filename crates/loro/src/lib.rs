@@ -1,8 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 use either::Either;
 use event::{DiffEvent, Subscriber};
-use loro_internal::change::Timestamp;
 use loro_internal::container::IntoContainerId;
 use loro_internal::cursor::CannotFindRelativePosition;
 use loro_internal::cursor::Cursor;
@@ -11,6 +11,7 @@ use loro_internal::cursor::Side;
 use loro_internal::encoding::ImportBlobMetadata;
 use loro_internal::handler::HandlerTrait;
 use loro_internal::handler::ValueOrHandler;
+use loro_internal::loro::CommitOptions;
 use loro_internal::LoroDoc as InnerLoroDoc;
 use loro_internal::OpLog;
 
@@ -18,6 +19,7 @@ use loro_internal::{
     handler::Handler as InnerHandler, ListHandler as InnerListHandler,
     MapHandler as InnerMapHandler, MovableListHandler as InnerMovableListHandler,
     TextHandler as InnerTextHandler, TreeHandler as InnerTreeHandler,
+    UnknownHandler as InnerUnknownHandler,
 };
 use std::cmp::Ordering;
 use std::ops::Range;
@@ -39,11 +41,19 @@ pub use loro_internal::id::{PeerID, TreeID, ID};
 pub use loro_internal::obs::SubID;
 pub use loro_internal::oplog::FrontiersNotIncluded;
 pub use loro_internal::version::{Frontiers, VersionVector};
+pub use loro_internal::UndoManager as InnerUndoManager;
 pub use loro_internal::{loro_value, to_value};
 pub use loro_internal::{LoroError, LoroResult, LoroValue, ToJson};
 
+#[cfg(feature = "counter")]
+mod counter;
+#[cfg(feature = "counter")]
+pub use counter::LoroCounter;
+
 /// `LoroDoc` is the entry for the whole document.
 /// When it's dropped, all the associated [`Handler`]s will be invalidated.
+#[derive(Debug)]
+#[repr(transparent)]
 pub struct LoroDoc {
     doc: InnerLoroDoc,
 }
@@ -57,7 +67,7 @@ impl Default for LoroDoc {
 impl LoroDoc {
     /// Create a new `LoroDoc` instance.
     pub fn new() -> Self {
-        let mut doc = InnerLoroDoc::default();
+        let doc = InnerLoroDoc::default();
         doc.start_auto_commit();
 
         LoroDoc { doc }
@@ -94,6 +104,16 @@ impl LoroDoc {
     #[inline]
     pub fn set_change_merge_interval(&self, interval: i64) {
         self.doc.set_change_merge_interval(interval);
+    }
+
+    /// Set the jitter of the tree position(Fractional Index).
+    ///
+    /// The jitter is used to avoid conflicts when multiple users are creating the node at the same position.
+    /// value 0 is default, which means no jitter, any value larger than 0 will enable jitter.
+    /// Generally speaking, jitter will affect the growth rate of document size.
+    #[inline]
+    pub fn set_fractional_index_jitter(&self, jitter: u8) {
+        self.doc.set_fractional_index_jitter(jitter);
     }
 
     /// Set the rich text format configuration of the document.
@@ -220,6 +240,16 @@ impl LoroDoc {
         }
     }
 
+    #[cfg(feature = "counter")]
+    /// Get a [LoroCounter] by container id.
+    ///
+    /// If the provided id is string, it will be converted into a root container id with the name of the string.
+    pub fn get_counter<I: IntoContainerId>(&self, id: I) -> LoroCounter {
+        LoroCounter {
+            handler: self.doc.get_counter(id),
+        }
+    }
+
     /// Commit the cumulative auto commit transaction.
     ///
     /// There is a transaction behind every operation.
@@ -234,17 +264,12 @@ impl LoroDoc {
     /// There is a transaction behind every operation.
     /// It will automatically commit when users invoke export or import.
     /// The event will be sent after a transaction is committed
-    pub fn commit_with(
-        &self,
-        origin: Option<&str>,
-        timestamp: Option<Timestamp>,
-        immediate_renew: bool,
-    ) {
-        self.doc
-            .commit_with(origin.map(|x| x.into()), timestamp, immediate_renew)
+    pub fn commit_with(&self, options: CommitOptions) {
+        self.doc.commit_with(options)
     }
 
-    /// Whether the document is in detached mode, where the [loro_internal::DocState] is not synchronized with the latest version of the [loro_internal::OpLog].
+    /// Whether the document is in detached mode, where the [loro_internal::DocState] is not
+    /// synchronized with the latest version of the [loro_internal::OpLog].
     pub fn is_detached(&self) -> bool {
         self.doc.is_detached()
     }
@@ -1150,7 +1175,34 @@ impl LoroTree {
     /// let child = tree.create(root).unwrap();
     /// ```
     pub fn create<T: Into<Option<TreeID>>>(&self, parent: T) -> LoroResult<TreeID> {
-        self.handler.create(parent)
+        let parent = parent.into();
+        let index = self.children_num(parent).unwrap_or(0);
+        self.handler.create_at(parent, index)
+    }
+
+    /// Create a new tree node at the given index and return the [`TreeID`].
+    ///
+    /// If the `parent` is `None`, the created node is the root of a tree.
+    /// If the `index` is greater than the number of children of the parent, error will be returned.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use loro::LoroDoc;
+    ///
+    /// let doc = LoroDoc::new();
+    /// let tree = doc.get_tree("tree");
+    /// // create a root
+    /// let root = tree.create(None).unwrap();
+    /// // create a new child at index 0
+    /// let child = tree.create_at(root, 0).unwrap();
+    /// ```
+    pub fn create_at<T: Into<Option<TreeID>>>(
+        &self,
+        parent: T,
+        index: usize,
+    ) -> LoroResult<TreeID> {
+        self.handler.create_at(parent, index)
     }
 
     /// Move the `target` node to be a child of the `parent` node.
@@ -1170,7 +1222,70 @@ impl LoroTree {
     /// tree.mov(root2, root).unwrap();
     /// ```
     pub fn mov<T: Into<Option<TreeID>>>(&self, target: TreeID, parent: T) -> LoroResult<()> {
-        self.handler.mov(target, parent.into())
+        let parent = parent.into();
+        let index = self.children_num(parent).unwrap_or(0);
+        self.handler.move_to(target, parent, index)
+    }
+
+    /// Move the `target` node to be a child of the `parent` node at the given index.
+    /// If the `parent` is `None`, the `target` node will be a root.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use loro::LoroDoc;
+    ///
+    /// let doc = LoroDoc::new();
+    /// let tree = doc.get_tree("tree");
+    /// let root = tree.create(None).unwrap();
+    /// let root2 = tree.create(None).unwrap();
+    /// // move `root2` to be a child of `root` at index 0.
+    /// tree.mov_to(root2, root, 0).unwrap();
+    /// ```
+    pub fn mov_to<T: Into<Option<TreeID>>>(
+        &self,
+        target: TreeID,
+        parent: T,
+        to: usize,
+    ) -> LoroResult<()> {
+        let parent = parent.into();
+        self.handler.move_to(target, parent, to)
+    }
+
+    /// Move the `target` node to be a child after the `after` node with the same parent.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use loro::LoroDoc;
+    ///
+    /// let doc = LoroDoc::new();
+    /// let tree = doc.get_tree("tree");
+    /// let root = tree.create(None).unwrap();
+    /// let root2 = tree.create(None).unwrap();
+    /// // move `root` to be a child after `root2`.
+    /// tree.mov_after(root, root2).unwrap();
+    /// ```
+    pub fn mov_after(&self, target: TreeID, after: TreeID) -> LoroResult<()> {
+        self.handler.mov_after(target, after)
+    }
+
+    /// Move the `target` node to be a child before the `before` node with the same parent.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use loro::LoroDoc;
+    ///
+    /// let doc = LoroDoc::new();
+    /// let tree = doc.get_tree("tree");
+    /// let root = tree.create(None).unwrap();
+    /// let root2 = tree.create(None).unwrap();
+    /// // move `root` to be a child before `root2`.
+    /// tree.mov_before(root, root2).unwrap();
+    /// ```
+    pub fn mov_before(&self, target: TreeID, before: TreeID) -> LoroResult<()> {
+        self.handler.mov_before(target, before)
     }
 
     /// Delete a tree node.
@@ -1214,7 +1329,7 @@ impl LoroTree {
     ///
     /// - If the target node does not exist, return `None`.
     /// - If the target node is a root node, return `Some(None)`.
-    pub fn parent(&self, target: TreeID) -> Option<Option<TreeID>> {
+    pub fn parent(&self, target: &TreeID) -> Option<Option<TreeID>> {
         self.handler.get_node_parent(target)
     }
 
@@ -1228,9 +1343,26 @@ impl LoroTree {
         self.handler.nodes()
     }
 
+    /// Return all children of the target node.
+    pub fn children(&self, parent: Option<TreeID>) -> Vec<TreeID> {
+        self.handler.children(parent)
+    }
+
+    /// Return the number of children of the target node.
+    pub fn children_num(&self, parent: Option<TreeID>) -> Option<usize> {
+        self.handler.children_num(parent)
+    }
+
     /// Return container id of the tree.
     pub fn id(&self) -> ContainerID {
-        self.handler.id().clone()
+        self.handler.id()
+    }
+
+    /// Return the fractional index of the target node with hex format.
+    pub fn fractional_index(&self, target: &TreeID) -> Option<String> {
+        self.handler
+            .get_position_by_tree_id(target)
+            .map(|x| x.to_string())
     }
 
     /// Return the flat array of the forest.
@@ -1470,6 +1602,50 @@ impl Default for LoroMovableList {
     }
 }
 
+/// Unknown container.
+#[derive(Clone, Debug)]
+pub struct LoroUnknown {
+    handler: InnerUnknownHandler,
+}
+
+impl SealedTrait for LoroUnknown {}
+impl ContainerTrait for LoroUnknown {
+    type Handler = InnerUnknownHandler;
+
+    fn to_container(&self) -> Container {
+        Container::Unknown(self.clone())
+    }
+
+    fn to_handler(&self) -> Self::Handler {
+        self.handler.clone()
+    }
+
+    fn from_handler(handler: Self::Handler) -> Self {
+        Self { handler }
+    }
+
+    fn try_from_container(container: Container) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        match container {
+            Container::Unknown(x) => Some(x),
+            _ => None,
+        }
+    }
+
+    fn is_attached(&self) -> bool {
+        self.handler.is_attached()
+    }
+
+    fn get_attached(&self) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        self.handler.get_attached().map(Self::from_handler)
+    }
+}
+
 use enum_as_inner::EnumAsInner;
 
 /// All the CRDT containers supported by loro.
@@ -1485,6 +1661,11 @@ pub enum Container {
     Tree(LoroTree),
     /// [LoroMovableList container](https://loro.dev/docs/tutorial/list)
     MovableList(LoroMovableList),
+    #[cfg(feature = "counter")]
+    /// [LoroCounter container]
+    Counter(counter::LoroCounter),
+    /// Unknown container
+    Unknown(LoroUnknown),
 }
 
 impl SealedTrait for Container {}
@@ -1502,6 +1683,9 @@ impl ContainerTrait for Container {
             Container::Text(x) => Self::Handler::Text(x.to_handler()),
             Container::Tree(x) => Self::Handler::Tree(x.to_handler()),
             Container::MovableList(x) => Self::Handler::MovableList(x.to_handler()),
+            #[cfg(feature = "counter")]
+            Container::Counter(x) => Self::Handler::Counter(x.to_handler()),
+            Container::Unknown(x) => Self::Handler::Unknown(x.to_handler()),
         }
     }
 
@@ -1512,6 +1696,9 @@ impl ContainerTrait for Container {
             InnerHandler::List(x) => Container::List(LoroList { handler: x }),
             InnerHandler::MovableList(x) => Container::MovableList(LoroMovableList { handler: x }),
             InnerHandler::Tree(x) => Container::Tree(LoroTree { handler: x }),
+            #[cfg(feature = "counter")]
+            InnerHandler::Counter(x) => Container::Counter(counter::LoroCounter { handler: x }),
+            InnerHandler::Unknown(x) => Container::Unknown(LoroUnknown { handler: x }),
         }
     }
 
@@ -1522,6 +1709,9 @@ impl ContainerTrait for Container {
             Container::Text(x) => x.is_attached(),
             Container::Tree(x) => x.is_attached(),
             Container::MovableList(x) => x.is_attached(),
+            #[cfg(feature = "counter")]
+            Container::Counter(x) => x.is_attached(),
+            Container::Unknown(x) => x.is_attached(),
         }
     }
 
@@ -1532,6 +1722,9 @@ impl ContainerTrait for Container {
             Container::Map(x) => x.get_attached().map(Container::Map),
             Container::Text(x) => x.get_attached().map(Container::Text),
             Container::Tree(x) => x.get_attached().map(Container::Tree),
+            #[cfg(feature = "counter")]
+            Container::Counter(x) => x.get_attached().map(Container::Counter),
+            Container::Unknown(x) => x.get_attached().map(Container::Unknown),
         }
     }
 
@@ -1556,6 +1749,9 @@ impl Container {
             ContainerType::Map => Container::Map(LoroMap::new()),
             ContainerType::Text => Container::Text(LoroText::new()),
             ContainerType::Tree => Container::Tree(LoroTree::new()),
+            #[cfg(feature = "counter")]
+            ContainerType::Counter => Container::Counter(counter::LoroCounter::new()),
+            ContainerType::Unknown(_) => unreachable!(),
         }
     }
 
@@ -1567,6 +1763,9 @@ impl Container {
             Container::Map(_) => ContainerType::Map,
             Container::Text(_) => ContainerType::Text,
             Container::Tree(_) => ContainerType::Tree,
+            #[cfg(feature = "counter")]
+            Container::Counter(_) => ContainerType::Counter,
+            Container::Unknown(x) => x.handler.id().container_type(),
         }
     }
 
@@ -1578,6 +1777,9 @@ impl Container {
             Container::Map(x) => x.id(),
             Container::Text(x) => x.id(),
             Container::Tree(x) => x.id(),
+            #[cfg(feature = "counter")]
+            Container::Counter(x) => x.id(),
+            Container::Unknown(x) => x.handler.id(),
         }
     }
 }
@@ -1590,6 +1792,9 @@ impl From<InnerHandler> for Container {
             InnerHandler::List(x) => Container::List(LoroList { handler: x }),
             InnerHandler::Tree(x) => Container::Tree(LoroTree { handler: x }),
             InnerHandler::MovableList(x) => Container::MovableList(LoroMovableList { handler: x }),
+            #[cfg(feature = "counter")]
+            InnerHandler::Counter(x) => Container::Counter(counter::LoroCounter { handler: x }),
+            InnerHandler::Unknown(x) => Container::Unknown(LoroUnknown { handler: x }),
         }
     }
 }
@@ -1601,4 +1806,59 @@ pub enum ValueOrContainer {
     Value(LoroValue),
     /// A container.
     Container(Container),
+}
+
+/// UndoManager can be used to undo and redo the changes made to the document with a certain peer.
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct UndoManager(InnerUndoManager);
+
+impl UndoManager {
+    /// Create a new UndoManager.
+    pub fn new(doc: &LoroDoc) -> Self {
+        let mut inner = InnerUndoManager::new(&doc.doc);
+        inner.set_max_undo_steps(100);
+        Self(inner)
+    }
+
+    /// Undo the last change made by the peer.
+    pub fn undo(&mut self, doc: &LoroDoc) -> LoroResult<bool> {
+        self.0.undo(&doc.doc)
+    }
+
+    /// Redo the last change made by the peer.
+    pub fn redo(&mut self, doc: &LoroDoc) -> LoroResult<bool> {
+        self.0.redo(&doc.doc)
+    }
+
+    /// Record a new checkpoint.
+    pub fn record_new_checkpoint(&mut self, doc: &LoroDoc) -> LoroResult<()> {
+        self.0.record_new_checkpoint(&doc.doc)
+    }
+
+    /// Whether the undo manager can undo.
+    pub fn can_undo(&self) -> bool {
+        self.0.can_undo()
+    }
+
+    /// Whether the undo manager can redo.
+    pub fn can_redo(&self) -> bool {
+        self.0.can_redo()
+    }
+
+    /// If a local event's origin matches the given prefix, it will not be recorded in the
+    /// undo stack.
+    pub fn add_exclude_origin_prefix(&mut self, prefix: &str) {
+        self.0.add_exclude_origin_prefix(prefix)
+    }
+
+    /// Set the maximum number of undo steps. The default value is 100.
+    pub fn set_max_undo_steps(&mut self, size: usize) {
+        self.0.set_max_undo_steps(size)
+    }
+
+    /// Set the merge interval in ms. The default value is 0, which means no merge.
+    pub fn set_merge_interval(&mut self, interval: i64) {
+        self.0.set_merge_interval(interval)
+    }
 }

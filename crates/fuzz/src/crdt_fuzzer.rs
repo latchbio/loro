@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use arbitrary::Arbitrary;
 use fxhash::FxHashSet;
@@ -6,7 +6,7 @@ use loro::{ContainerType, Frontiers};
 use tabled::TableIteratorExt;
 use tracing::{info, info_span};
 
-use crate::array_mut_ref;
+use crate::{actions::ActionWrapper, array_mut_ref};
 
 pub use super::actions::Action;
 use super::actor::Actor;
@@ -17,11 +17,11 @@ pub enum FuzzValue {
     Container(ContainerType),
 }
 
-impl ToString for FuzzValue {
-    fn to_string(&self) -> String {
+impl Display for FuzzValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FuzzValue::I32(i) => i.to_string(),
-            FuzzValue::Container(c) => c.to_string(),
+            FuzzValue::I32(i) => write!(f, "{}", i),
+            FuzzValue::Container(c) => write!(f, "{}", c),
         }
     }
 }
@@ -75,12 +75,25 @@ impl CRDTFuzzer {
                 container,
                 action,
             } => {
+                if matches!(action, ActionWrapper::Action(_)) {
+                    return;
+                }
                 *site %= max_users;
                 let actor = &mut self.actors[*site as usize];
                 *target %= self.targets.len() as u8;
                 let target = self.targets.iter().nth(*target as usize).unwrap();
                 action.convert_to_inner(target);
                 actor.pre_process(action.as_action_mut().unwrap(), container);
+            }
+            Action::Undo { site, op_len } => {
+                *site %= max_users;
+                let actor = &mut self.actors[*site as usize];
+                *op_len %= actor.undo_manager.can_undo_length as u32 + 1;
+            }
+            Action::SyncAllUndo { site, op_len } => {
+                *site %= max_users;
+                let actor = &mut self.actors[*site as usize];
+                *op_len %= actor.undo_manager.can_undo_length as u32 + 1;
             }
         }
     }
@@ -136,7 +149,36 @@ impl CRDTFuzzer {
                 let actor = &mut self.actors[*site as usize];
                 let action = action.as_action().unwrap();
                 actor.apply(action, *container);
-                // actor.loro.commit();
+            }
+            Action::Undo { site, op_len } => {
+                let actor = &mut self.actors[*site as usize];
+                if *op_len != 0 {
+                    actor.undo(*op_len);
+                }
+            }
+            Action::SyncAllUndo { site, op_len } => {
+                for i in 1..self.site_num() {
+                    info_span!("Importing", "importing to 0 from {}", i).in_scope(|| {
+                        let (a, b) = array_mut_ref!(&mut self.actors, [0, i]);
+                        a.loro
+                            .import(&b.loro.export_from(&a.loro.oplog_vv()))
+                            .unwrap();
+                    });
+                }
+
+                for i in 1..self.site_num() {
+                    info_span!("Importing", "importing to {} from {}", i, 0).in_scope(|| {
+                        let (a, b) = array_mut_ref!(&mut self.actors, [0, i]);
+                        b.loro
+                            .import(&a.loro.export_from(&b.loro.oplog_vv()))
+                            .unwrap();
+                    });
+                }
+                self.actors.iter_mut().for_each(|a| a.record_history());
+                let actor = &mut self.actors[*site as usize];
+                if *op_len != 0 {
+                    actor.undo(*op_len);
+                }
             }
         }
     }
@@ -201,6 +243,7 @@ pub enum FuzzTarget {
     Text,
     Tree,
     MovableList,
+    Counter,
     All,
 }
 
@@ -231,6 +274,9 @@ impl FuzzTarget {
             FuzzTarget::MovableList => {
                 set.insert(ContainerType::MovableList);
             }
+            FuzzTarget::Counter => {
+                set.insert(ContainerType::Counter);
+            }
         }
         set
     }
@@ -238,10 +284,10 @@ impl FuzzTarget {
 
 pub fn test_multi_sites(site_num: u8, fuzz_targets: Vec<FuzzTarget>, actions: &mut [Action]) {
     let mut fuzzer = CRDTFuzzer::new(site_num, fuzz_targets);
-
     let mut applied = Vec::new();
     for action in actions.iter_mut() {
         fuzzer.pre_process(action);
+
         info_span!("ApplyAction", ?action).in_scope(|| {
             applied.push(action.clone());
             info!("OptionsTable \n{}", (&applied).table());
