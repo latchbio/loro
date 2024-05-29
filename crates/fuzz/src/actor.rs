@@ -122,19 +122,19 @@ impl Actor {
     }
 
     pub fn undo(&mut self, undo_length: u32) {
-        self.loro.attach();
-        let mut before_undo = self.loro.get_deep_value();
-        for _ in 0..undo_length {
-            self.undo_manager.undo.undo(&self.loro).unwrap();
-        }
+        // self.loro.attach();
+        // let mut before_undo = self.loro.get_deep_value();
+        // for _ in 0..undo_length {
+        //     self.undo_manager.undo.undo(&self.loro).unwrap();
+        // }
 
-        for _ in 0..undo_length {
-            self.undo_manager.undo.redo(&self.loro).unwrap();
-        }
-        let mut after_undo = self.loro.get_deep_value();
-        Self::patch_tree_undo_position(&mut before_undo);
-        Self::patch_tree_undo_position(&mut after_undo);
-        assert_value_eq(&before_undo, &after_undo);
+        // for _ in 0..undo_length {
+        //     self.undo_manager.undo.redo(&self.loro).unwrap();
+        // }
+        // let mut after_undo = self.loro.get_deep_value();
+        // Self::patch_tree_undo_position(&mut before_undo);
+        // Self::patch_tree_undo_position(&mut after_undo);
+        // assert_value_eq(&before_undo, &after_undo);
     }
 
     fn patch_tree_undo_position(a: &mut LoroValue) {

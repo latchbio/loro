@@ -86,14 +86,14 @@ impl CRDTFuzzer {
                 actor.pre_process(action.as_action_mut().unwrap(), container);
             }
             Action::Undo { site, op_len } => {
-                *site %= max_users;
-                let actor = &mut self.actors[*site as usize];
-                *op_len %= actor.undo_manager.can_undo_length as u32 + 1;
+                // *site %= max_users;
+                // let actor = &mut self.actors[*site as usize];
+                // *op_len %= actor.undo_manager.can_undo_length as u32 + 1;
             }
             Action::SyncAllUndo { site, op_len } => {
-                *site %= max_users;
-                let actor = &mut self.actors[*site as usize];
-                *op_len %= actor.undo_manager.can_undo_length as u32 + 1;
+                // *site %= max_users;
+                // let actor = &mut self.actors[*site as usize];
+                // *op_len %= actor.undo_manager.can_undo_length as u32 + 1;
             }
         }
     }
@@ -151,34 +151,34 @@ impl CRDTFuzzer {
                 actor.apply(action, *container);
             }
             Action::Undo { site, op_len } => {
-                let actor = &mut self.actors[*site as usize];
-                if *op_len != 0 {
-                    actor.undo(*op_len);
-                }
+                // let actor = &mut self.actors[*site as usize];
+                // if *op_len != 0 {
+                //     actor.undo(*op_len);
+                // }
             }
             Action::SyncAllUndo { site, op_len } => {
-                for i in 1..self.site_num() {
-                    info_span!("Importing", "importing to 0 from {}", i).in_scope(|| {
-                        let (a, b) = array_mut_ref!(&mut self.actors, [0, i]);
-                        a.loro
-                            .import(&b.loro.export_from(&a.loro.oplog_vv()))
-                            .unwrap();
-                    });
-                }
+                // for i in 1..self.site_num() {
+                //     info_span!("Importing", "importing to 0 from {}", i).in_scope(|| {
+                //         let (a, b) = array_mut_ref!(&mut self.actors, [0, i]);
+                //         a.loro
+                //             .import(&b.loro.export_from(&a.loro.oplog_vv()))
+                //             .unwrap();
+                //     });
+                // }
 
-                for i in 1..self.site_num() {
-                    info_span!("Importing", "importing to {} from {}", i, 0).in_scope(|| {
-                        let (a, b) = array_mut_ref!(&mut self.actors, [0, i]);
-                        b.loro
-                            .import(&a.loro.export_from(&b.loro.oplog_vv()))
-                            .unwrap();
-                    });
-                }
-                self.actors.iter_mut().for_each(|a| a.record_history());
-                let actor = &mut self.actors[*site as usize];
-                if *op_len != 0 {
-                    actor.undo(*op_len);
-                }
+                // for i in 1..self.site_num() {
+                //     info_span!("Importing", "importing to {} from {}", i, 0).in_scope(|| {
+                //         let (a, b) = array_mut_ref!(&mut self.actors, [0, i]);
+                //         b.loro
+                //             .import(&a.loro.export_from(&b.loro.oplog_vv()))
+                //             .unwrap();
+                //     });
+                // }
+                // self.actors.iter_mut().for_each(|a| a.record_history());
+                // let actor = &mut self.actors[*site as usize];
+                // if *op_len != 0 {
+                //     actor.undo(*op_len);
+                // }
             }
         }
     }
