@@ -254,10 +254,7 @@ impl OpLog {
                 );
                 let timestamp_change = change.timestamp - last.timestamp;
                 // TODO: make this a config
-                if !last.has_dependents
-                    && change.deps_on_self()
-                    && timestamp_change < self.configure.merge_interval()
-                {
+                if change.deps_on_self() && timestamp_change < self.configure.merge_interval() {
                     for op in take(change.ops.vec_mut()) {
                         last.ops.push(op);
                     }
@@ -357,7 +354,6 @@ impl OpLog {
             });
 
             for dep in change.deps.iter() {
-                self.ensure_dep_on_change_end(change.id.peer, *dep);
                 let target = self.dag.get_mut(*dep).unwrap();
                 if target.ctr_last() == dep.counter {
                     target.has_succ = true;
@@ -366,32 +362,6 @@ impl OpLog {
         }
 
         EnsureChangeDepsAreAtTheEnd
-    }
-
-    fn ensure_dep_on_change_end(&mut self, src: PeerID, dep: ID) {
-        let changes = self.changes.get_mut(&dep.peer).unwrap();
-        match changes.binary_search_by(|c| c.ctr_last().cmp(&dep.counter)) {
-            Ok(index) => {
-                if src != dep.peer {
-                    changes[index].has_dependents = true;
-                }
-            }
-            Err(index) => {
-                // This operation is slow in some rare cases, but I guess it's fine for now.
-                //
-                // It's only slow when you import an old concurrent change.
-                // And once it's imported, because it's old, it has small lamport timestamp, so it
-                // won't be slow again in the future imports.
-                let change = &mut changes[index];
-                let offset = (dep.counter - change.id.counter + 1) as usize;
-                let left = change.slice(0, offset);
-                let right = change.slice(offset, change.atom_len());
-                assert_ne!(left.atom_len(), 0);
-                assert_ne!(right.atom_len(), 0);
-                *change = left;
-                changes.insert(index + 1, right);
-            }
-        }
     }
 
     /// Trim the known part of change
@@ -557,7 +527,6 @@ impl OpLog {
             deps: change.deps.clone(),
             lamport: change.lamport,
             timestamp: change.timestamp,
-            has_dependents: false,
         }
     }
 
