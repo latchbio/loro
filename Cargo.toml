@@ -10,6 +10,7 @@ members = [
     "crates/fuzz",
     "crates/dev-utils",
     "crates/delta",
+    "crates/loro-python"
 ]
 resolver = "2"
 

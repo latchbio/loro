@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use loro_internal::{LoroDoc, TextHandler};
-use pyo3::prelude::*;
+use loro_internal::{HandlerTrait, LoroDoc, TextHandler};
+use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass]
 struct Loro(LoroDoc);
@@ -19,6 +19,24 @@ impl Loro {
     pub fn get_text(&mut self, id: &str) -> LoroText {
         let text = self.0.get_text(id);
         LoroText(text)
+    }
+
+    pub fn import_snapshot(&mut self, snapshot: &[u8]) -> PyResult<()> {
+        self.0.import(snapshot).unwrap();
+        Ok(())
+    }
+
+    pub fn import_update_batch(&mut self, data: Vec<Vec<u8>>) -> PyResult<()> {
+        if data.is_empty() {
+            return Ok(());
+        }
+        self.0.import_batch(&data).unwrap();
+        Ok(())
+    }
+
+    pub fn export_snapshot(&self, py: Python) -> PyResult<PyObject> {
+        let snapshot = self.0.export_snapshot();
+        Ok(PyBytes::new(py, &snapshot).into())
     }
 }
 
